@@ -141,6 +141,7 @@ Top level:
 |---|---|
 | `holdfast_service_healthy{service}` | checks pass here |
 | `holdfast_service_mode{service,mode}` | 0 announce, 1 degrade, 2 withdraw |
+| `holdfast_service_changes_total{service}` | mode changes here; a fast climb means flapping |
 | `holdfast_guard_holding{service}` | the guard is keeping this site up although it is unhealthy |
 | `holdfast_guard_held_total{service}` | times that has started |
 | `holdfast_fleet_sites_announcing{service}` | sites announcing, as this site sees them |
