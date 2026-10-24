@@ -200,7 +200,7 @@ The fleet tests run several holdfast daemons, each with its own stand-in router 
 
 ## Limits
 
-- **Brief overshoot.** Each site decides from its own view of the fleet. If two sites see a third differently (one has a newer report than the other), their rankings can differ and both may withdraw, for one fleet poll interval at most, before their views agree again. Unknown sites take withdraw slots, which keeps this on the safe side in most cases but not all.
+- **Brief overshoot.** Each site decides from its own view of the fleet. If two sites see a third differently (one has a newer report than the other), their rankings can differ and both may withdraw. A withdrawn site stays out while it is unhealthy, so this lasts until one of them recovers. Unknown sites take withdraw slots, which keeps this on the safe side in most cases but not all.
 - **Degrade is a hint.** Prepending only moves traffic for networks that prefer shorter AS paths. Networks with local preference on their own routes, or that ignore path length, keep sending to a degraded site. `degrade_communities` helps where the upstream acts on a tag.
 - **Floor without capacity.** holdfast doesn't know how much load a site can take. If the floor is two sites and they can't carry everyone, the floor keeps the service reachable but not fast.
 - **BGP coverage.** IPv4 and IPv6 unicast only. Four-octet AS, route refresh (answered, not enhanced), graceful restart (offered, as a restart time), administrative shutdown messages. No TCP MD5 or TCP-AO, no BFD, no ADD-PATH, no extended messages, no policy on routes received (holdfast counts them and enforces `max_prefixes`, nothing more).
