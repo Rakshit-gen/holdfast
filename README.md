@@ -158,6 +158,8 @@ A service can set its own floor. DNS, which everything else depends on, can ask 
 | `holdfast_bgp_prefixes_sent{neighbor}` | prefixes the neighbor has from us |
 | `holdfast_bgp_flaps_total{neighbor}` | times the session dropped |
 
+`GET /v1/healthz` answers 200 while the guard is running and 503 if it hasn't run for 5 seconds, for a supervisor to restart a stuck daemon.
+
 `holdfast_guard_holding` is the one to alert on: a site is unhealthy and the floor is holding it up, so either the floor is protecting you from a bad check or more of the fleet is broken than the floor allows to leave.
 
 ## Moving from a plain health checker
