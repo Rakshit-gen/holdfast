@@ -133,11 +133,12 @@ Top level:
 |---|---|
 | `holdfast_service_healthy{service}` | checks pass here |
 | `holdfast_service_mode{service,mode}` | 0 announce, 1 degrade, 2 withdraw |
-| `holdfast_guard_held_total{service}` | times the guard kept this site up while it was unhealthy |
+| `holdfast_guard_holding{service}` | the guard is keeping this site up although it is unhealthy |
+| `holdfast_guard_held_total{service}` | times that has started |
 | `holdfast_fleet_sites_announcing{service}` | sites announcing, as this site sees them |
 | `holdfast_fleet_peer_reachable{site}` | the last poll of that site worked |
 | `holdfast_bgp_established{neighbor}` | session state |
 | `holdfast_bgp_prefixes_sent{neighbor}` | prefixes the neighbor has from us |
 | `holdfast_bgp_flaps_total{neighbor}` | times the session dropped |
 
-`holdfast_guard_held_total` going up is the one to alert on: a site is unhealthy and the floor is holding it up, so either the floor is protecting you from a bad check or more of the fleet is broken than the floor allows to leave.
+`holdfast_guard_holding` is the one to alert on: a site is unhealthy and the floor is holding it up, so either the floor is protecting you from a bad check or more of the fleet is broken than the floor allows to leave.
