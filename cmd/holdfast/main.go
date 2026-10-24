@@ -1,0 +1,107 @@
+// Command holdfast announces a site's anycast prefixes over BGP while
+// their health checks pass, and keeps enough sites announcing that a
+// fleet-wide false alarm can't take the whole service off the internet.
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/Rakshit-gen/holdfast/config"
+	"github.com/Rakshit-gen/holdfast/daemon"
+)
+
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
+const defaultConfig = "/etc/holdfast/holdfast.json"
+
+const usage = `holdfast announces anycast prefixes while they're healthy, and never
+lets the whole fleet withdraw at once.
+
+  holdfast run     [-config /etc/holdfast/holdfast.json]
+  holdfast check   [-config ...]
+  holdfast version
+
+Run a command with -h for its flags.
+`
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprint(os.Stderr, usage)
+		os.Exit(2)
+	}
+	cmds := map[string]func([]string) error{
+		"run": runCmd, "check": checkCmd,
+	}
+	name, args := os.Args[1], os.Args[2:]
+	switch name {
+	case "version", "--version", "-v":
+		fmt.Printf("holdfast %s (%s, %s)\n", version, commit, date)
+		return
+	case "help", "-h", "--help":
+		fmt.Print(usage)
+		return
+	}
+	cmd, ok := cmds[name]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "holdfast: no command %q\n\n%s", name, usage)
+		os.Exit(2)
+	}
+	if err := cmd(args); err != nil {
+		if !errors.Is(err, flag.ErrHelp) {
+			fmt.Fprintln(os.Stderr, "holdfast:", err)
+		}
+		os.Exit(1)
+	}
+}
+
+func configFlag(fs *flag.FlagSet) *string {
+	return fs.String("config", defaultConfig, "config file")
+}
+
+func runCmd(args []string) error {
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	path := configFlag(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg, err := config.Load(*path)
+	if err != nil {
+		return err
+	}
+	logger := log.New(os.Stderr, "", log.LstdFlags)
+	d, err := daemon.New(cfg, logger.Printf)
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	logger.Printf("holdfast %s: site %s, %d services, %d neighbors", version, cfg.Site, len(cfg.Services), len(cfg.Neighbors))
+	return d.Run(ctx)
+}
+
+func checkCmd(args []string) error {
+	fs := flag.NewFlagSet("check", flag.ContinueOnError)
+	path := configFlag(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg, err := config.Load(*path)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s: ok. Site %s, %d services, %d neighbors, %d other sites, floor %d of %d sites.\n",
+		*path, cfg.Site, len(cfg.Services), len(cfg.Neighbors), len(cfg.Fleet.Peers),
+		cfg.Policy().Floor(len(cfg.Fleet.Peers)+1), len(cfg.Fleet.Peers)+1)
+	return nil
+}
