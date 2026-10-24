@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -293,4 +294,23 @@ func TestStopWithdrawsFirst(t *testing.T) {
 	if f := sites[0].r.s.Status().Flaps; f != 1 {
 		t.Fatalf("%d flaps", f)
 	}
+}
+
+func TestGracefulShutdownBeforeWithdraw(t *testing.T) {
+	sites := fleetOf(t, 2, func(c *config.Config) {
+		c.Fleet.MinUp = 1
+		c.GracefulShutdown = config.Duration(time.Second)
+	})
+	eventually(t, "announced", func() bool { p, _, _ := count(sites); return p == 2 })
+	marked := func() bool {
+		for _, r := range sites[0].r.s.Received() {
+			if slices.Contains(r.Attrs.Communities, bgp.CommunityGracefulShutdown) {
+				return true
+			}
+		}
+		return false
+	}
+	sites[0].healthy.Store(false)
+	eventually(t, "the route marked for graceful shutdown", marked)
+	eventually(t, "the route withdrawn", func() bool { _, ok := sites[0].r.paths()["198.51.100.53/32"]; return !ok })
 }
