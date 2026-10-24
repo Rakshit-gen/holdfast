@@ -34,7 +34,7 @@ lets the whole fleet withdraw at once.
 
   holdfast run     [-config /etc/holdfast/holdfast.json]
   holdfast check   [-config ...] [-probe]
-  holdfast status  [-api 127.0.0.1:9179] [-json]
+  holdfast status  [-api 127.0.0.1:9179] [-json] [-v]
   holdfast drain   [-api ...] [service]
   holdfast undrain [-api ...] [service]
   holdfast sim     [-floor 0.3] [-false-alarm 0.1] ...

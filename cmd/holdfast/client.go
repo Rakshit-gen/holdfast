@@ -27,6 +27,7 @@ func statusCmd(args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	api := apiFlag(fs)
 	raw := fs.Bool("json", false, "print the JSON as the API returns it")
+	verbose := fs.Bool("v", false, "also show every site's report for each service")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -47,6 +48,9 @@ func statusCmd(args []string) error {
 		return err
 	}
 	printStatus(os.Stdout, st, time.Now())
+	if *verbose {
+		printFleet(os.Stdout, st)
+	}
 	return nil
 }
 
@@ -92,6 +96,20 @@ func printStatus(w io.Writer, st daemon.Status, now time.Time) {
 		for _, site := range slices.Sorted(maps.Keys(st.Fleet)) {
 			fmt.Fprintf(w, "  %s: %s\n", site, st.Fleet[site])
 		}
+	}
+}
+
+// printFleet shows each service's reports from every site, as this site
+// last saw them.
+func printFleet(w io.Writer, st daemon.Status) {
+	for _, s := range st.Services {
+		fmt.Fprintf(w, "\n%s, as %s sees the fleet:\n", s.Name, st.Site)
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(tw, "  SITE\tHEALTHY\tMODE\tREPORT AGE")
+		for _, x := range s.Sites {
+			fmt.Fprintf(tw, "  %s\t%s\t%s\t%.0fs\n", x.Site, yes(x.Healthy), x.Mode, x.Age)
+		}
+		tw.Flush()
 	}
 }
 
