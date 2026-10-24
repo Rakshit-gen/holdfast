@@ -61,20 +61,15 @@ type mineEntry struct {
 	at      time.Time
 }
 
-// Set records this site's state for a service.
+// Set records this site's state for a service. Call it often, changed or
+// not: the other sites judge freshness by it.
 func (n *Node) Set(service string, healthy bool, mode guard.Mode) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.mine == nil {
 		n.mine = map[string]mineEntry{}
 	}
-	old, ok := n.mine[service]
-	if ok && old.healthy == healthy && old.mode == mode {
-		// Unchanged, but it's still current.
-		old.at = time.Now()
-		n.mine[service] = old
-		return
-	}
+	// The time is when this was last confirmed, changed or not.
 	n.mine[service] = mineEntry{healthy, mode, time.Now()}
 }
 
