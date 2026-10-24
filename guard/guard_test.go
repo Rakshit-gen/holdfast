@@ -71,8 +71,11 @@ func TestEveryoneSickKeepsTheFloor(t *testing.T) {
 	for _, p := range []Policy{{MinUp: 3}, {MinFraction: 0.5}, {MinUp: 2, MinFraction: 0.25}} {
 		withdrawn := 0
 		for _, s := range names {
-			if decide("dns", s, false, cur(s, rs), rs, names, p, t0).Mode == Withdraw {
+			switch d := decide("dns", s, false, cur(s, rs), rs, names, p, t0); {
+			case d.Mode == Withdraw:
 				withdrawn++
+			case !d.Held:
+				t.Errorf("%s kept up but not marked held: %v", s, d)
 			}
 		}
 		if want := 20 - p.Floor(20); withdrawn != want {
@@ -188,7 +191,8 @@ func TestFailStaticKeepsAWithdrawnSiteOut(t *testing.T) {
 
 func TestSickSiteDegradesFirst(t *testing.T) {
 	rs, names := fleetOf(10, 3)
-	if d := decide("dns", "site03", false, Announce, rs, names, Policy{MinUp: 3}, t0); d.Mode != Degrade {
+	// Not held: it will leave once it has heard from everyone.
+	if d := decide("dns", "site03", false, Announce, rs, names, Policy{MinUp: 3}, t0); d.Mode != Degrade || d.Held {
 		t.Fatal(d)
 	}
 }

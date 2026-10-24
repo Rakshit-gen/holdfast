@@ -87,6 +87,9 @@ func (p Policy) Floor(n int) int {
 type Decision struct {
 	Mode   Mode
 	Reason string
+	// Held is set when the site would withdraw but the guard keeps it
+	// announcing: for the floor, or because it can't see the fleet.
+	Held bool
 }
 
 // Input is what a site knows when it decides one service's mode.
@@ -120,18 +123,18 @@ type Input struct {
 // the first few, as many as the floor leaves room for, withdraw.
 func Decide(in Input, p Policy) Decision {
 	if in.Healthy {
-		return Decision{Announce, "healthy"}
+		return Decision{Announce, "healthy", false}
 	}
 	if p.Unguarded {
-		return Decision{Withdraw, "unhealthy"}
+		return Decision{Withdraw, "unhealthy", false}
 	}
 	if in.Mode == Announce {
-		return Decision{Degrade, "unhealthy; degrading first so the other sites see it"}
+		return Decision{Degrade, "unhealthy; degrading first so the other sites see it", false}
 	}
 	if in.Mode == Withdraw {
 		// The floor holds sites up; it never brings back one that is out
 		// and still failing, or one starting up that hasn't passed yet.
-		return Decision{Withdraw, "unhealthy"}
+		return Decision{Withdraw, "unhealthy", false}
 	}
 
 	all := map[string]*Report{}
@@ -164,10 +167,10 @@ func Decide(in Input, p Policy) Decision {
 	}
 	if others > 0 && float64(known) < p.quorum()*float64(others) {
 		// Fail static: keep what we have.
-		return Decision{Degrade, "can't see enough of the fleet to withdraw safely"}
+		return Decision{Degrade, "can't see enough of the fleet to withdraw safely", true}
 	}
 	if waiting {
-		return Decision{Degrade, "unhealthy; waiting for the other sites' next reports"}
+		return Decision{Degrade, "unhealthy; waiting for the other sites' next reports", false}
 	}
 
 	n := len(all)
@@ -182,9 +185,9 @@ func Decide(in Input, p Policy) Decision {
 		return cmp.Or(cmp.Compare(out(a), out(b)), cmp.Compare(rank(in.Service, a), rank(in.Service, b)), cmp.Compare(a, b))
 	})
 	if i := slices.Index(sick, in.Site); i < room {
-		return Decision{Withdraw, "unhealthy"}
+		return Decision{Withdraw, "unhealthy", false}
 	}
-	return Decision{Degrade, "unhealthy, but withdrawing would leave too few sites"}
+	return Decision{Degrade, "unhealthy, but withdrawing would leave too few sites", true}
 }
 
 func rank(service, site string) uint64 {

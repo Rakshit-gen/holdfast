@@ -43,7 +43,8 @@ type serviceState struct {
 	mode    guard.Mode
 	reason  string
 	since   time.Time
-	held    int // times the guard kept this site announcing while sick
+	held    int  // times the guard kept this site announcing while sick
+	holding bool // and whether it is now
 	changes int
 	// Until leaving, a withdrawn service still announces its routes as
 	// they were in mode was, marked for graceful shutdown.
@@ -215,15 +216,16 @@ func (d *Daemon) decide(now time.Time) {
 		}, d.cfg.Policy(s.cfg))
 		if dec.Mode != s.mode {
 			d.logf("service %s: %s -> %s (%s)", name, s.mode, dec.Mode, dec.Reason)
-			if dec.Mode == guard.Degrade {
-				s.held++
-			}
 			if gs := time.Duration(d.cfg.GracefulShutdown); dec.Mode == guard.Withdraw && s.mode != guard.Withdraw && gs > 0 {
 				s.leaving, s.was = now.Add(gs), s.mode
 			}
 			s.mode, s.since = dec.Mode, now
 			s.changes++
 		}
+		if dec.Held && !s.holding {
+			s.held++
+		}
+		s.holding = dec.Held
 		s.reason = dec.Reason
 		d.fleet.Set(name, s.healthy, s.mode)
 		if s.mode == guard.Withdraw && now.Before(s.leaving) {
