@@ -2,6 +2,7 @@ package guard
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"testing"
 	"time"
 )
@@ -218,5 +219,48 @@ func TestTheFloorNeverBringsBackAWithdrawnSite(t *testing.T) {
 	rs, names := fleetOf(3, 0, 1, 2)
 	if d := decide("dns", "site00", false, Withdraw, rs, names, Policy{MinUp: 3}, t0); d.Mode != Withdraw {
 		t.Fatal(d)
+	}
+}
+
+// With one shared view, however the fleet looks, the sites never withdraw
+// more than the floor allows, counting those already out.
+func TestNeverBelowTheFloor(t *testing.T) {
+	r := rand.New(rand.NewPCG(1, 2))
+	for range 2000 {
+		n := 1 + r.IntN(30)
+		var rs []Report
+		var names []string
+		for i := range n {
+			name := fmt.Sprintf("site%02d", i)
+			names = append(names, name)
+			m := Mode(r.IntN(3))
+			healthy := r.IntN(3) == 0
+			if m == Announce && !healthy {
+				m = Degrade
+			}
+			at := t0
+			if r.IntN(10) == 0 {
+				at = t0.Add(-time.Hour) // stale
+			}
+			rs = append(rs, Report{Site: name, Healthy: healthy, Mode: m, At: at})
+		}
+		p := Policy{MinUp: r.IntN(n + 1), MinFraction: r.Float64() / 2}
+		withdrawn := 0
+		for _, rp := range rs {
+			if decide("dns", rp.Site, rp.Healthy, rp.Mode, rs, names, p, t0).Mode == Withdraw {
+				withdrawn++
+			}
+		}
+		// Sites already out stay out, so they can be over the limit on
+		// their own; beyond them nobody new may leave.
+		already := 0
+		for _, rp := range rs {
+			if rp.Mode == Withdraw && !rp.Healthy {
+				already++
+			}
+		}
+		if limit := max(n-p.Floor(n), already); withdrawn > limit {
+			t.Fatalf("%d of %d withdrew, floor %d, %d already out\n%+v", withdrawn, n, p.Floor(n), already, rs)
+		}
 	}
 }
