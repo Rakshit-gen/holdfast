@@ -160,6 +160,16 @@ A service can set its own floor. DNS, which everything else depends on, can ask 
 
 `holdfast_guard_holding` is the one to alert on: a site is unhealthy and the floor is holding it up, so either the floor is protecting you from a bad check or more of the fleet is broken than the floor allows to leave.
 
+## Moving from a plain health checker
+
+If the sites already announce through ExaBGP, BIRD with a check script, or similar:
+
+1. Run `holdfast check -probe` at each site with the same checks the old setup uses, and make sure they pass.
+2. Start holdfast on one site with its own BGP session alongside the old announcer. Both announce the same prefixes; the router picks one. Watch `holdfast status -v` until the site sees every other site.
+3. Do the same at each site, then remove the old announcer one site at a time. With `graceful_shutdown` set, each holdfast you restart along the way moves traffic away before its routes leave.
+
+Until every site runs holdfast, the sites that don't are unknown to the guard. It counts them as unhealthy and still announcing, which only makes it more careful.
+
 ## What the simulator says
 
 `holdfast sim` and `holdfast bench` play a fleet minute by minute through failures and count how much user traffic fails. **The world is invented.** Failure rates, how long failures last, and how traffic moves are parameters picked for the simulator, not measurements of any real network. The numbers show how the policies differ under those assumptions and nothing more.
