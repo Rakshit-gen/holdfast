@@ -193,7 +193,7 @@ func dnsServer(t *testing.T, empty bool) string {
 			resp := append([]byte(nil), q[:2]...)
 			resp = append(resp, 0x81, 0x80) // response, recursion available
 			resp = append(resp, 0, 1)       // one question
-			if empty || q[end-3] != 1 {       // AAAA etc: no answers
+			if empty || q[end-3] != 1 {     // AAAA etc: no answers
 				resp = append(resp, 0, 0, 0, 0, 0, 0)
 				resp = append(resp, q[12:]...)
 			} else {
