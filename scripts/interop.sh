@@ -113,6 +113,7 @@ wait_for "plain path" path_is "65001 "
 # check degrades it: the same prefix with a longer path.
 touch "$dir/drain"
 wait_for "degraded path is prepended" path_is "65001 65001 65001 65001"
+wait_for "degraded ipv6 path is prepended too" has "65001 65001 65001 65001" rib6
 rm "$dir/drain"
 wait_for "healthy again, plain path" lacks "65001 65001" rib4
 
@@ -120,4 +121,5 @@ kill "$hf"
 # GoBGP prints 65535:0 by its draft name, planned-shut.
 wait_for "marked for graceful shutdown when holdfast stops" has planned-shut rib4
 wait_for "withdrawn when holdfast stops" lacks 198.51.100.53/32 rib4
+wait_for "ipv6 withdrawn too" lacks 2001:db8:53::/48 rib6
 echo "interop passed"
