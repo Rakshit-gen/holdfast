@@ -125,3 +125,35 @@ func TestAgeIsCountedFromTheRequest(t *testing.T) {
 		t.Fatalf("age %v", age)
 	}
 }
+
+func TestBadReportsAreRejected(t *testing.T) {
+	for name, body := range map[string]string{
+		"unknown mode": `{"site":"a","services":[{"service":"dns","mode":"sideways"}]}`,
+		"negative age": `{"site":"a","services":[{"service":"dns","mode":"announce","age_seconds":-5}]}`,
+		"not json":     `<html>`,
+		"too big":      `{"site":"a","services":[` + strings.Repeat(`{"service":"x","mode":"announce"},`, 40000) + `]}`,
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(body))
+		}))
+		b := &Node{Site: "b", Peers: []Peer{{"a", srv.URL}}, Client: http.DefaultClient}
+		b.poll(context.Background(), b.Peers[0])
+		srv.Close()
+		if b.PeerErrors()["a"] == "" || len(b.View("dns")) != 0 {
+			t.Errorf("%s: accepted, view %v", name, b.View("dns"))
+		}
+	}
+}
+
+func TestUnchangedSetStaysCurrent(t *testing.T) {
+	// The guard counts a report as fresh by when it was last confirmed,
+	// not when it last changed.
+	a := &Node{Site: "a"}
+	a.Set("dns", true, guard.Announce)
+	first := a.View("dns")[0].At
+	time.Sleep(10 * time.Millisecond)
+	a.Set("dns", true, guard.Announce)
+	if !a.View("dns")[0].At.After(first) {
+		t.Fatal("time didn't move")
+	}
+}
