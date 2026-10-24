@@ -39,6 +39,7 @@ lets the whole fleet withdraw at once.
   holdfast undrain [-api ...] [service]
   holdfast sim     [-floor 0.3] [-false-alarm 0.1] ...
   holdfast bench   [-seeds 5]
+  holdfast replay  [-share 0] [-sites 10] [-floor 0.3]
   holdfast version
 
 Run a command with -h for its flags.
@@ -51,7 +52,7 @@ func main() {
 	}
 	cmds := map[string]func([]string) error{
 		"run": runCmd, "check": checkCmd, "status": statusCmd,
-		"drain": drainCmd(true), "undrain": drainCmd(false), "sim": simCmd, "bench": benchCmd,
+		"drain": drainCmd(true), "undrain": drainCmd(false), "sim": simCmd, "bench": benchCmd, "replay": replayCmd,
 	}
 	name, args := os.Args[1], os.Args[2:]
 	switch name {

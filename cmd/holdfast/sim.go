@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/Rakshit-gen/holdfast/sim"
@@ -49,4 +50,47 @@ func benchCmd(args []string) error {
 	}
 	sim.Bench(os.Stdout, *seeds)
 	return nil
+}
+
+func replayCmd(args []string) error {
+	fs := flag.NewFlagSet("replay", flag.ContinueOnError)
+	c := sim.Config{Sites: 10, Minutes: 25, Floor: 0.3, Leak: sim.Default().Leak}
+	fs.IntVar(&c.Sites, "sites", c.Sites, "sites in the fleet")
+	fs.Float64Var(&c.Floor, "floor", c.Floor, "share of sites the guard keeps announcing")
+	share := fs.Float64("share", 0, "share of sites that really break; 0 means a false alarm at every site")
+	length := fs.Int("minutes", 10, "how long the outage lasts")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if c.Sites < 1 || *length < 1 || *share < 0 || *share > 1 {
+		return fmt.Errorf("sites and minutes must be at least 1, share 0 to 1")
+	}
+	o := sim.Outage{Start: 5, Minutes: *length, False: *share == 0, Share: *share}
+	c.Minutes = o.Start + o.Minutes + 5
+	c.Script = []sim.Outage{o}
+	what := "every check fails while the service works"
+	if !o.False {
+		what = fmt.Sprintf("%.0f%% of sites really break", 100*o.Share)
+	}
+	fmt.Printf("Invented world: %d sites. From minute %d to %d, %s.\nEach column is announcing/degraded/withdrawn sites, then failed traffic.\n\n",
+		c.Sites, o.Start, o.Start+o.Minutes, what)
+	var lines [][]sim.Minute
+	for _, p := range sim.Policies {
+		lines = append(lines, sim.Timeline(c, p))
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprint(tw, "MINUTE")
+	for _, p := range sim.Policies {
+		fmt.Fprintf(tw, "\t%s", strings.ToUpper(p.String()))
+	}
+	fmt.Fprintln(tw)
+	for m := range c.Minutes {
+		fmt.Fprintf(tw, "%d", m)
+		for _, l := range lines {
+			x := l[m]
+			fmt.Fprintf(tw, "\t%d/%d/%d %3.0f%%", x.Announce, x.Degrade, x.Withdraw, 100*x.Failed)
+		}
+		fmt.Fprintln(tw)
+	}
+	return tw.Flush()
 }
