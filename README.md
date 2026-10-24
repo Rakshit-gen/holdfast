@@ -142,3 +142,46 @@ Top level:
 | `holdfast_bgp_flaps_total{neighbor}` | times the session dropped |
 
 `holdfast_guard_holding` is the one to alert on: a site is unhealthy and the floor is holding it up, so either the floor is protecting you from a bad check or more of the fleet is broken than the floor allows to leave.
+
+## What the simulator says
+
+`holdfast sim` and `holdfast bench` play a fleet minute by minute through failures and count how much user traffic fails. **The world is invented.** Failure rates, how long failures last, and how traffic moves are parameters I chose, not measurements of any real network. The numbers show how the policies differ under those assumptions and nothing more.
+
+The model: 20 sites for a week. Each site's users go to their own site if it announces normally, otherwise they spread over the sites that do. Degraded sites only get traffic when no site announces normally, except that 20% of a degraded site's own users still reach it, since a longer path doesn't beat every route their network has. Checks are perfect (no rise or fall delay) and sites see each other's reports a minute late. Three policies face the same failures:
+
+- **static:** plain anycast, never withdraws.
+- **unguarded:** withdraws whenever its check fails.
+- **guarded:** holdfast, floor at 30% of sites.
+
+`holdfast bench -seeds 10`, means over 10 worlds per row:
+
+| scenario | static: failed | unguarded: failed | guarded: failed | unguarded: dark minutes | guarded: dark minutes |
+|---|---|---|---|---|---|
+| site failures | 0.324% | 0.000% | 0.003% | 0 | 0 |
+| false alarms | 0.324% | 0.318% | 0.010% | 32 | 0 |
+| regional | 0.468% | 0.000% | 0.004% | 0 | 0 |
+| big regional | 0.703% | 0.000% | 0.015% | 0 | 0 |
+| partitions | 0.289% | 0.000% | 0.003% | 0 | 0 |
+| mixed | 0.310% | 0.276% | 0.003% | 27 | 0 |
+
+- **site failures:** each site fails for real 0.2 times a day, 20 minutes on average.
+- **false alarms:** plus every check failing at once 0.3 times a day, 30 minutes, while the service works.
+- **regional:** plus 30% of sites failing for real together 0.3 times a day, 45 minutes.
+- **big regional:** the same, but 80% of sites at once.
+- **partitions:** plus each site losing sight of the fleet once a day for 15 minutes.
+- **mixed:** site failures, false alarms, 30% regional outages and partitions at lower rates.
+
+"Dark minutes" are minutes in which no site announced at all: the Facebook failure. Unguarded health checks do best when failures are real and local, and turn every false alarm into a total outage. Guarded pays a little on real failures, for the minute a sick site spends degraded before it withdraws and for the sick sites the floor holds up, and never goes dark.
+
+What the floor costs when 80% of sites really are broken:
+
+| floor | failed | dark minutes |
+|---|---|---|
+| 5% | 0.005% | 0 |
+| 10% | 0.005% | 0 |
+| 20% | 0.006% | 0 |
+| 30% | 0.015% | 0 |
+| 50% | 0.034% | 0 |
+| 70% | 0.052% | 0 |
+
+A higher floor keeps more broken sites up in a real regional outage. A lower one leaves fewer sites to carry everyone during a false alarm, and the simulator doesn't model capacity, so it can't show that side. Pick the floor from how many sites can carry the whole load.
