@@ -285,3 +285,25 @@ func TestSessionAnswersRouteRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPassiveSessionTakesTheNextConnection(t *testing.T) {
+	ac, bc := cfg(64512, "10.0.0.1"), cfg(64513, "10.0.0.2")
+	ac.PeerAS, bc.PeerAS = 64513, 64512
+	a, b := pair(t, ac, bc)
+	pf := netip.MustParsePrefix("198.51.100.0/24")
+	a.Advertise([]Route{{Prefix: pf}})
+	ctx, cancel := context.WithCancel(context.Background())
+	go a.Run(ctx)
+	start(t, b)
+	eventually(t, "established", func() bool { return len(b.Received()) == 1 })
+	cancel()
+	eventually(t, "b waiting again", func() bool { return b.Status().State == Active })
+	if len(b.Received()) != 0 {
+		t.Fatal("routes kept after the session dropped")
+	}
+	// The peer comes back as a new process.
+	a2 := NewSession(a.cfg)
+	a2.Advertise([]Route{{Prefix: pf}})
+	start(t, a2)
+	eventually(t, "re-established with the route", func() bool { return len(b.Received()) == 1 })
+}
