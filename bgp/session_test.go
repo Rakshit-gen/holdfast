@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -306,4 +307,33 @@ func TestPassiveSessionTakesTheNextConnection(t *testing.T) {
 	a2.Advertise([]Route{{Prefix: pf}})
 	start(t, a2)
 	eventually(t, "re-established with the route", func() bool { return len(b.Received()) == 1 })
+}
+
+func TestMissingNextHopLoggedOnce(t *testing.T) {
+	ac, bc := cfg(64512, "10.0.0.1"), cfg(64513, "10.0.0.2")
+	ac.PeerAS, bc.PeerAS = 64513, 64512
+	ac.NextHop6 = netip.Addr{}
+	var mu sync.Mutex
+	logged := 0
+	ac.Logf = func(f string, a ...any) {
+		if strings.Contains(f, "no %s next hop") {
+			mu.Lock()
+			logged++
+			mu.Unlock()
+		}
+	}
+	a, b := pair(t, ac, bc)
+	routes := []Route{{Prefix: netip.MustParsePrefix("192.0.2.0/24")}, {Prefix: netip.MustParsePrefix("2001:db8:1::/48")}}
+	a.Advertise(routes)
+	start(t, a, b)
+	eventually(t, "v4 route", func() bool { return len(b.Received()) == 1 })
+	for range 5 {
+		a.Advertise(routes)
+		time.Sleep(10 * time.Millisecond)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if logged != 1 {
+		t.Fatalf("logged %d times", logged)
+	}
 }

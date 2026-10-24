@@ -120,6 +120,7 @@ type Session struct {
 
 	wake     chan struct{}
 	incoming chan net.Conn
+	noHop    map[netip.Prefix]bool // prefixes already logged as unannounceable
 }
 
 // NewSession makes a session; Run starts it.
@@ -129,6 +130,7 @@ func NewSession(cfg Config) *Session {
 		cfg:      cfg,
 		want:     map[netip.Prefix]Route{},
 		recv:     map[netip.Prefix]Route{},
+		noHop:    map[netip.Prefix]bool{},
 		wake:     make(chan struct{}, 1),
 		incoming: make(chan net.Conn),
 		status:   Status{State: Idle, Since: time.Now()},
@@ -519,7 +521,11 @@ func (s *Session) sync(c *conn, peer *Open, sent map[netip.Prefix]Route) error {
 				}
 			}
 			if r.NextHop.Is4() != p.Addr().Is4() || !r.NextHop.IsValid() {
-				s.cfg.Logf("bgp %s: not announcing %v, no %s next hop", s.name(), p, f)
+				// sync runs on every Advertise, so say it once per prefix.
+				if !s.noHop[p] {
+					s.cfg.Logf("bgp %s: not announcing %v, no %s next hop", s.name(), p, f)
+					s.noHop[p] = true
+				}
 				continue
 			}
 			want[p] = r
