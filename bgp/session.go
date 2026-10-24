@@ -292,6 +292,18 @@ func (c *conn) send(m Message) error {
 	return err
 }
 
+// deadline sets the read deadline d from now, or none for 0. A cancel
+// that lands before this would have its "unblock now" deadline
+// overwritten, so check for it after.
+func (c *conn) deadline(ctx context.Context, d time.Duration) error {
+	var t time.Time
+	if d > 0 {
+		t = time.Now().Add(d)
+	}
+	c.SetReadDeadline(t)
+	return ctx.Err()
+}
+
 // checkOpen validates the peer's OPEN against the config.
 func (s *Session) checkOpen(o *Open) error {
 	if o.AS != s.cfg.PeerAS {
@@ -326,7 +338,9 @@ func (s *Session) run(ctx context.Context, nc net.Conn) error {
 	}
 	s.setState(OpenSent, nil)
 	// RFC 4271 suggests 4 minutes for the OPEN to arrive.
-	c.SetReadDeadline(time.Now().Add(4 * time.Minute))
+	if err := c.deadline(ctx, 4*time.Minute); err != nil {
+		return err
+	}
 	m, err := c.codec.Read(c)
 	if err != nil {
 		return s.fail(c, err)
@@ -358,12 +372,11 @@ func (s *Session) run(ctx context.Context, nc net.Conn) error {
 	defer close(done)
 	go func() {
 		for {
-			if hold > 0 {
-				c.SetReadDeadline(time.Now().Add(hold))
-			} else {
-				c.SetReadDeadline(time.Time{})
+			err := c.deadline(ctx, hold)
+			var m Message
+			if err == nil {
+				m, err = c.codec.Read(c)
 			}
-			m, err := c.codec.Read(c)
 			if err != nil {
 				var ne net.Error
 				if ctx.Err() != nil {
