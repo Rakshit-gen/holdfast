@@ -116,8 +116,17 @@ func checkCmd(args []string) error {
 	sites := len(cfg.Fleet.Peers) + 1
 	fmt.Printf("%s: ok. Site %s, %d neighbors, %d sites in the fleet.\n", *path, cfg.Site, len(cfg.Neighbors), sites)
 	for _, s := range cfg.Services {
-		fmt.Printf("  %s: %d prefixes, at least %d of %d sites keep announcing\n",
-			s.Name, len(s.Prefixes), cfg.Policy(s).Floor(sites), sites)
+		pol := cfg.Policy(s)
+		if pol.Unguarded {
+			fmt.Printf("  %s: %d prefixes, unguarded, so every site may withdraw at once\n", s.Name, len(s.Prefixes))
+			continue
+		}
+		note := ""
+		if pol.Floor(sites) == sites {
+			note = "; no site can ever withdraw, only degrade"
+		}
+		fmt.Printf("  %s: %d prefixes, at least %d of %d sites keep announcing%s\n",
+			s.Name, len(s.Prefixes), pol.Floor(sites), sites, note)
 	}
 	if !*probe {
 		return nil
