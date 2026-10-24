@@ -53,3 +53,14 @@ func TestGuardBeatsStaticOnRealFailures(t *testing.T) {
 		t.Fatalf("guarded %v, static %v", g.Failed, s.Failed)
 	}
 }
+
+func TestGuardedNeverDark(t *testing.T) {
+	for _, s := range Scenarios() {
+		c := s.Cfg
+		c.Minutes = 2 * 24 * 60
+		c.Seed = 3
+		if r := Run(c, Guarded); r.Dark != 0 {
+			t.Errorf("%s: %d dark minutes", s.Name, r.Dark)
+		}
+	}
+}
