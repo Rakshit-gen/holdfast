@@ -145,7 +145,7 @@ Top level:
 
 ## What the simulator says
 
-`holdfast sim` and `holdfast bench` play a fleet minute by minute through failures and count how much user traffic fails. **The world is invented.** Failure rates, how long failures last, and how traffic moves are parameters I chose, not measurements of any real network. The numbers show how the policies differ under those assumptions and nothing more.
+`holdfast sim` and `holdfast bench` play a fleet minute by minute through failures and count how much user traffic fails. **The world is invented.** Failure rates, how long failures last, and how traffic moves are parameters picked for the simulator, not measurements of any real network. The numbers show how the policies differ under those assumptions and nothing more.
 
 The model: 20 sites for a week. Each site's users go to their own site if it announces normally, otherwise they spread over the sites that do. Degraded sites only get traffic when no site announces normally, except that 20% of a degraded site's own users still reach it, since a longer path doesn't beat every route their network has. Checks are perfect (no rise or fall delay) and sites see each other's reports a minute late. Three policies face the same failures:
 
@@ -185,3 +185,15 @@ What the floor costs when 80% of sites really are broken:
 | 70% | 0.052% | 0 |
 
 A higher floor keeps more broken sites up in a real regional outage. A lower one leaves fewer sites to carry everyone during a false alarm, and the simulator doesn't model capacity, so it can't show that side. Pick the floor from how many sites can carry the whole load.
+
+## Testing
+
+```
+go test -race ./...                              # unit tests, plus whole fleets of 2 and 3 sites over loopback
+go test -fuzz FuzzRead -fuzztime 1m ./bgp         # the BGP message parser
+scripts/interop.sh                               # against a real GoBGP
+```
+
+The fleet tests run several holdfast daemons, each with its own stand-in router and a health endpoint the test turns off, and check what the routers end up with: one sick site leaves, every site sick keeps the floor, a cut-off site fails static, a stop withdraws before closing.
+
+`scripts/interop.sh` runs holdfast against GoBGP v3.37.0 and checks, through `gobgp`, that the session comes up, IPv4 and IPv6 (MP_REACH) prefixes and communities arrive, a failing check prepends the path, recovery restores it, and stopping marks the routes for graceful shutdown and then withdraws them. CI runs it on every push.
