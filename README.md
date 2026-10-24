@@ -173,6 +173,20 @@ The model: 20 sites for a week. Each site's users go to their own site if it ann
 
 "Dark minutes" are minutes in which no site announced at all: the Facebook failure. Unguarded health checks do best when failures are real and local, and turn every false alarm into a total outage. Guarded pays a little on real failures, for the minute a sick site spends degraded before it withdraws and for the sick sites the floor holds up, and never goes dark.
 
+`holdfast replay` plays a single outage minute by minute. A false alarm at 10 sites, trimmed (columns are announcing/degraded/withdrawn sites, then failed traffic):
+
+```
+MINUTE  STATIC       UNGUARDED    GUARDED
+4       10/0/0   0%  10/0/0   0%  10/0/0   0%
+5       10/0/0   0%  0/0/10 100%  0/10/0   0%
+6       10/0/0   0%  0/0/10 100%  0/3/7    0%
+...
+14      10/0/0   0%  0/0/10 100%  0/3/7    0%
+15      10/0/0   0%  10/0/0   0%  10/0/0   0%
+```
+
+Every guarded site degrades in the first minute, hears that the others did too, and then seven withdraw while three hold. With `-share 0.8` (eight sites really broken), guarded loses 16% of traffic in the first minute while the broken sites are degraded and still keep some of their users, then 2%: the one broken site the floor holds up.
+
 What the floor costs when 80% of sites really are broken:
 
 | floor | failed | dark minutes |
