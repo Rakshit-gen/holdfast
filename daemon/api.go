@@ -147,6 +147,11 @@ func (d *Daemon) metrics(w io.Writer) {
 	for _, s := range st.Services {
 		p("holdfast_guard_held_total{service=%q} %d", s.Name, s.Held)
 	}
+	p("# HELP holdfast_guard_holding Whether the guard is keeping this site announcing while unhealthy.")
+	p("# TYPE holdfast_guard_holding gauge")
+	for _, s := range st.Services {
+		p("holdfast_guard_holding{service=%q} %d", s.Name, b(s.Holding))
+	}
 	p("# HELP holdfast_fleet_sites_announcing Sites announcing the service, as this site sees them.")
 	p("# TYPE holdfast_fleet_sites_announcing gauge")
 	for _, s := range st.Services {

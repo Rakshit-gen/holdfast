@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -260,22 +261,16 @@ func TestStatusAndMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var sb strings.Builder
-	buf := make([]byte, 4096)
-	for {
-		n, err := resp.Body.Read(buf)
-		sb.Write(buf[:n])
-		if err != nil {
-			break
-		}
-	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
 	for _, want := range []string{
 		`holdfast_service_mode{service="dns",mode="announce"} 0`,
 		`holdfast_fleet_sites_announcing{service="dns"} 3`,
+		`holdfast_guard_holding{service="dns"} 0`,
 		`holdfast_bgp_established{neighbor="127.0.0.1"} 1`,
 		`holdfast_fleet_peer_reachable{site="s1"} 1`,
 	} {
-		if !strings.Contains(sb.String(), want) {
+		if !strings.Contains(string(body), want) {
 			t.Errorf("metrics missing %s", want)
 		}
 	}
