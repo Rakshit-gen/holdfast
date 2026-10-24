@@ -173,6 +173,17 @@ func TestExecAndAbsent(t *testing.T) {
 	if err := (Exec{[]string{"sleep", "5"}}).Check(tctx); err == nil {
 		t.Fatal("timeout passed")
 	}
+	// A child that leaves a grandchild holding its output still returns
+	// soon after the timeout.
+	tctx, cancel = context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if err := (Exec{[]string{"sh", "-c", "sleep 5 & sleep 5"}}).Check(tctx); err == nil {
+		t.Fatal("timeout passed")
+	}
+	if d := time.Since(start); d > 3*time.Second {
+		t.Fatalf("took %v", d)
+	}
 
 	f := filepath.Join(t.TempDir(), "drain")
 	if err := (Absent{f}).Check(ctx); err != nil {
