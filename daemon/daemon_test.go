@@ -2,12 +2,21 @@ package daemon
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -308,4 +317,47 @@ func TestGracefulShutdownBeforeWithdraw(t *testing.T) {
 	sites[0].healthy.Store(false)
 	eventually(t, "the route marked for graceful shutdown", marked)
 	eventually(t, "the route withdrawn", func() bool { _, ok := sites[0].r.paths()["198.51.100.53/32"]; return !ok })
+}
+
+// selfSigned writes a certificate for 127.0.0.1 and its key, and returns
+// their paths. The certificate is its own CA.
+func selfSigned(t *testing.T) (cert, key string) {
+	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "holdfast test"},
+		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour),
+		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1)}, IsCA: true, BasicConstraintsValid: true,
+		KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &k.PublicKey, k)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kb, _ := x509.MarshalECPrivateKey(k)
+	dir := t.TempDir()
+	cert, key = filepath.Join(dir, "cert.pem"), filepath.Join(dir, "key.pem")
+	os.WriteFile(cert, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600)
+	os.WriteFile(key, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: kb}), 0o600)
+	return cert, key
+}
+
+func TestFleetOverTLS(t *testing.T) {
+	cert, key := selfSigned(t)
+	sites := fleetOf(t, 2, func(c *config.Config) {
+		c.Fleet.TLSCert, c.Fleet.TLSKey, c.Fleet.CAFile = cert, key, cert
+		for i := range c.Fleet.Peers {
+			c.Fleet.Peers[i].URL = strings.Replace(c.Fleet.Peers[i].URL, "http://", "https://", 1)
+		}
+	})
+	eventually(t, "each site to see the other over TLS", func() bool {
+		for _, s := range sites {
+			if len(s.d.Status().Services[0].Sites) != 2 || len(s.d.Status().Fleet) != 0 {
+				return false
+			}
+		}
+		return true
+	})
 }
