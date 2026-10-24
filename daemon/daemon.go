@@ -184,7 +184,7 @@ func (d *Daemon) accept(ln net.Listener) {
 			return
 		}
 		ap, _ := netip.ParseAddrPort(c.RemoteAddr().String())
-		s := d.sessions[ap.Addr().Unmap()]
+		s := d.sessions[ap.Addr().Unmap().WithZone("")]
 		if s == nil {
 			d.logf("bgp: closing connection from unknown %v", ap.Addr())
 			c.Close()
