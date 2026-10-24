@@ -72,7 +72,13 @@ holdfast drain dns         # mark dns unhealthy here; the guard decides if it ma
 holdfast undrain dns
 ```
 
-There is a hardened systemd unit in [examples/holdfast.service](examples/holdfast.service).
+In [examples](examples):
+
+- [holdfast.json](examples/holdfast.json): one site of four, with dns and web.
+- [minimal.json](examples/minimal.json): the least a site needs.
+- [holdfast.service](examples/holdfast.service): a hardened systemd unit.
+- [bird.conf](examples/bird.conf): the router side in BIRD 2, filtering what holdfast may announce and acting on graceful shutdown. Not tested here; check it with `bird -p`.
+- [alerts.yml](examples/alerts.yml): Prometheus alert rules.
 
 ## Config
 
