@@ -30,6 +30,7 @@ type ServiceStatus struct {
 	Since   time.Time `json:"since"`
 	LastErr string    `json:"last_error,omitempty"`
 	Held    int       `json:"held"`
+	Holding bool      `json:"holding"` // the guard is keeping this site up now
 	Changes int       `json:"changes"`
 	// Sites is how each site in the fleet reports this service.
 	Sites []SiteStatus `json:"sites"`
@@ -66,7 +67,7 @@ func (d *Daemon) Status() Status {
 	for name, s := range d.svc {
 		ss := ServiceStatus{
 			Name: name, Healthy: s.healthy, Drained: s.drained, Mode: s.mode.String(), Reason: s.reason,
-			Since: s.since, Held: s.held, Changes: s.changes, Sites: []SiteStatus{},
+			Since: s.since, Held: s.held, Holding: s.holding, Changes: s.changes, Sites: []SiteStatus{},
 		}
 		if !s.healthy {
 			ss.LastErr = errs[name]

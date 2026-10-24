@@ -15,7 +15,7 @@ func TestPrintStatus(t *testing.T) {
 	st := daemon.Status{
 		Site: "ams1",
 		Services: []daemon.ServiceStatus{{
-			Name: "dns", Mode: "degrade", Reason: "unhealthy, but withdrawing would leave too few sites",
+			Name: "dns", Mode: "degrade", Holding: true, Reason: "unhealthy, but withdrawing would leave too few sites",
 			LastErr: "dns: timeout", Since: now.Add(-90 * time.Second),
 			Sites: []daemon.SiteStatus{{Site: "ams1", Mode: "degrade"}, {Site: "fra1", Mode: "withdraw"}, {Site: "lhr1"}},
 		}},
@@ -25,7 +25,7 @@ func TestPrintStatus(t *testing.T) {
 	var b strings.Builder
 	printStatus(&b, st, now)
 	out := b.String()
-	for _, want := range []string{"site ams1", "1m30s", "2/3 announcing", "too few sites: dns: timeout", "192.0.2.1", "cdg1: refused\n  lhr1: timeout"} {
+	for _, want := range []string{"site ams1", "degrade (held)", "1m30s", "2/3 announcing", "too few sites: dns: timeout", "192.0.2.1", "cdg1: refused\n  lhr1: timeout"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in\n%s", want, out)
 		}

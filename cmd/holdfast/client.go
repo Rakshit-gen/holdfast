@@ -65,12 +65,16 @@ func printStatus(w io.Writer, st daemon.Status, now time.Time) {
 				up++
 			}
 		}
+		mode := s.Mode
+		if s.Holding {
+			mode += " (held)"
+		}
 		reason := s.Reason
 		if s.LastErr != "" {
 			reason += ": " + s.LastErr
 		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d/%d announcing\t%s\n",
-			s.Name, healthy, s.Mode, ago(now, s.Since), up, len(s.Sites), reason)
+			s.Name, healthy, mode, ago(now, s.Since), up, len(s.Sites), reason)
 	}
 	tw.Flush()
 
