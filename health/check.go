@@ -5,6 +5,7 @@ package health
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -59,11 +60,7 @@ func (c HTTP) Check(ctx context.Context) error {
 		req.Host = c.Host
 	}
 	req.Header.Set("User-Agent", "holdfast-health")
-	cl := c.Client
-	if cl == nil {
-		cl = noRedirects
-	}
-	resp, err := cl.Do(req)
+	resp, err := c.client().Do(req)
 	if err != nil {
 		return err
 	}
@@ -84,6 +81,26 @@ func (c HTTP) Check(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// client is Client, or one that doesn't follow redirects. Checking a
+// vhost over https on a local address needs the TLS server name to be
+// the vhost too, or the certificate won't match.
+func (c HTTP) client() *http.Client {
+	if c.Client != nil {
+		return c.Client
+	}
+	if c.Host == "" || !strings.HasPrefix(c.URL, "https://") {
+		return noRedirects
+	}
+	name := c.Host
+	if h, _, err := net.SplitHostPort(name); err == nil {
+		name = h
+	}
+	return &http.Client{
+		CheckRedirect: noRedirects.CheckRedirect,
+		Transport:     &http.Transport{DisableKeepAlives: true, TLSClientConfig: &tls.Config{ServerName: name}},
+	}
 }
 
 // A health check should see the redirect itself, not follow it to

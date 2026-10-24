@@ -131,6 +131,22 @@ func TestHTTP(t *testing.T) {
 	}
 }
 
+func TestHTTPSServerNameFollowsHost(t *testing.T) {
+	name := func(c HTTP) string {
+		tr, _ := c.client().Transport.(*http.Transport)
+		if tr == nil || tr.TLSClientConfig == nil {
+			return ""
+		}
+		return tr.TLSClientConfig.ServerName
+	}
+	if got := name(HTTP{URL: "https://127.0.0.1/healthz", Host: "www.example.com:443"}); got != "www.example.com" {
+		t.Errorf("server name %q", got)
+	}
+	if got := name(HTTP{URL: "http://127.0.0.1/healthz", Host: "www.example.com"}); got != "" {
+		t.Errorf("plain http got server name %q", got)
+	}
+}
+
 func TestTCP(t *testing.T) {
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	addr := ln.Addr().String()
