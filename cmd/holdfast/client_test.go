@@ -32,6 +32,18 @@ func TestPrintStatus(t *testing.T) {
 	}
 }
 
+func TestPrintFleet(t *testing.T) {
+	st := daemon.Status{Site: "ams1", Services: []daemon.ServiceStatus{{
+		Name:  "dns",
+		Sites: []daemon.SiteStatus{{Site: "ams1", Healthy: true, Mode: "announce"}, {Site: "fra1", Mode: "withdraw", Age: 4.2}},
+	}}}
+	var b strings.Builder
+	printFleet(&b, st)
+	if out := b.String(); !strings.Contains(out, "dns, as ams1 sees the fleet") || !strings.Contains(out, "fra1  no       withdraw  4s") {
+		t.Fatalf("got\n%s", out)
+	}
+}
+
 func TestDrain(t *testing.T) {
 	var got string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
