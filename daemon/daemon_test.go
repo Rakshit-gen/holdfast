@@ -361,3 +361,18 @@ func TestFleetOverTLS(t *testing.T) {
 		return true
 	})
 }
+
+func TestDrainFile(t *testing.T) {
+	drain := filepath.Join(t.TempDir(), "drain")
+	sites := fleetOf(t, 2, func(c *config.Config) {
+		c.Fleet.MinUp = 1
+		if c.Site == "s0" {
+			c.DrainFile = drain
+		}
+	})
+	eventually(t, "announced", func() bool { p, _, _ := count(sites); return p == 2 })
+	os.WriteFile(drain, nil, 0o644)
+	eventually(t, "s0 to withdraw", func() bool { p, _, g := count(sites); return p == 1 && g == 1 })
+	os.Remove(drain)
+	eventually(t, "s0 back", func() bool { p, _, _ := count(sites); return p == 2 })
+}
