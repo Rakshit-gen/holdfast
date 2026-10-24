@@ -1,5 +1,7 @@
 # holdfast
 
+[![ci](https://github.com/Rakshit-gen/holdfast/actions/workflows/ci.yml/badge.svg)](https://github.com/Rakshit-gen/holdfast/actions/workflows/ci.yml)
+
 holdfast announces a site's anycast prefixes over BGP while the service behind them passes its health checks, and withdraws them when it doesn't. That part is what every anycast health checker does. The difference is that holdfast sites talk to each other, and a site only withdraws if enough other sites will still be announcing. A check that fails everywhere at once can't take the whole service off the internet.
 
 It is one static Go binary with no dependencies outside the standard library. It runs its own BGP speaker, so there is no ExaBGP or BIRD to drive.
