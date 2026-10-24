@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -375,4 +376,42 @@ func TestDrainFile(t *testing.T) {
 	eventually(t, "s0 to withdraw", func() bool { p, _, g := count(sites); return p == 1 && g == 1 })
 	os.Remove(drain)
 	eventually(t, "s0 back", func() bool { p, _, _ := count(sites); return p == 2 })
+}
+
+func TestUnknownBGPPeerIsClosed(t *testing.T) {
+	listen := freePort(t)
+	cfg := &config.Config{
+		Site: "s0", ASN: 64512, RouterID: netip.MustParseAddr("10.0.0.1"), NextHop: netip.MustParseAddr("10.0.0.1"),
+		Listen:    listen,
+		Neighbors: []config.Neighbor{{Address: netip.MustParseAddr("10.9.9.1"), ASN: 64513, Passive: true}},
+		Services: []config.Service{{
+			Name: "dns", Prefixes: []string{"198.51.100.53/32"}, Checks: []config.Check{{Type: "tcp", Addr: listen}},
+		}},
+	}
+	if err := cfg.Check(); err != nil {
+		t.Fatal(err)
+	}
+	var logs strings.Builder
+	var mu sync.Mutex
+	d, err := New(cfg, func(f string, a ...any) { mu.Lock(); fmt.Fprintf(&logs, f+"\n", a...); mu.Unlock() })
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { d.Run(ctx); close(done) }()
+	defer func() { cancel(); <-done }()
+
+	var c net.Conn
+	eventually(t, "the listener", func() bool { c, err = net.Dial("tcp", listen); return err == nil })
+	defer c.Close()
+	c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := c.Read(make([]byte, 1)); err != io.EOF {
+		t.Fatalf("read %v, want the connection closed", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(logs.String(), "closing connection from unknown 127.0.0.1") {
+		t.Fatalf("logs:\n%s", logs.String())
+	}
 }
