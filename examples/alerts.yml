@@ -1,0 +1,28 @@
+# Prometheus alerting rules for holdfast's /metrics.
+groups:
+  - name: holdfast
+    rules:
+      - alert: HoldfastHoldingSiteUp
+        expr: holdfast_guard_holding == 1
+        for: 2m
+        annotations:
+          summary: "{{ $labels.service }} is unhealthy at {{ $labels.instance }} but the floor keeps it announcing"
+          description: "Either the checks are wrong everywhere, or more of the fleet is down than the floor lets withdraw."
+
+      - alert: HoldfastFewSitesAnnouncing
+        expr: min by (service) (holdfast_fleet_sites_announcing) < 3
+        for: 5m
+        annotations:
+          summary: "only {{ $value }} sites announce {{ $labels.service }}"
+
+      - alert: HoldfastBGPDown
+        expr: holdfast_bgp_established == 0
+        for: 2m
+        annotations:
+          summary: "BGP session to {{ $labels.neighbor }} at {{ $labels.instance }} is down"
+
+      - alert: HoldfastCantSeeSite
+        expr: holdfast_fleet_peer_reachable == 0
+        for: 5m
+        annotations:
+          summary: "{{ $labels.instance }} can't poll {{ $labels.site }}"
