@@ -67,6 +67,18 @@ type Config struct {
 	// Leak is the share of a degraded site's own users that still reach
 	// it: a longer path doesn't beat every route their network has.
 	Leak float64
+
+	// Script adds outages at fixed times, on top of the random ones.
+	Script []Outage
+}
+
+// Outage is one scripted failure. A false alarm fails every check while
+// the service works; otherwise Share of the sites, a run of neighbours
+// starting at the first, really break.
+type Outage struct {
+	Start, Minutes int
+	False          bool
+	Share          float64
 }
 
 // Default is a mixed world: rare real failures at single sites, a false
@@ -156,15 +168,54 @@ func newWorld(c Config) *world {
 			w.falseAll[m] = true
 		}
 	}
+	for _, o := range c.Script {
+		e := event{o.Start, o.Start + o.Minutes, 0}
+		if o.False {
+			for m := e.start; m < min(e.end, c.Minutes); m++ {
+				w.falseAll[m] = true
+			}
+			continue
+		}
+		for s := range max(1, int(o.Share*float64(c.Sites))) {
+			mark(w.broken, e, s%c.Sites)
+		}
+	}
 	return w
 }
 
 // Run plays one policy through the world drawn from c.
 func Run(c Config, p Policy) Result {
-	return newWorld(c).run(p)
+	return newWorld(c).run(p, nil)
 }
 
-func (w *world) run(p Policy) Result {
+// Minute is the fleet in one minute of a Timeline.
+type Minute struct {
+	Announce, Degrade, Withdraw int
+	Failed                      float64
+}
+
+// Timeline plays one policy and returns every minute.
+func Timeline(c Config, p Policy) []Minute {
+	out := make([]Minute, 0, c.Minutes)
+	newWorld(c).run(p, func(mode []guard.Mode, failed float64) {
+		var m Minute
+		for _, md := range mode {
+			switch md {
+			case guard.Announce:
+				m.Announce++
+			case guard.Degrade:
+				m.Degrade++
+			default:
+				m.Withdraw++
+			}
+		}
+		m.Failed = failed
+		out = append(out, m)
+	})
+	return out
+}
+
+func (w *world) run(p Policy, each func(mode []guard.Mode, failed float64)) Result {
 	c := w.c
 	names := make([]string, c.Sites)
 	for i := range names {
@@ -215,6 +266,9 @@ func (w *world) run(p Policy) Result {
 			}
 		}
 		f, dark := w.traffic(m, mode)
+		if each != nil {
+			each(mode, f)
+		}
 		failed += f
 		if dark {
 			res.Dark++

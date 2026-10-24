@@ -57,7 +57,7 @@ func Mean(c Config, n int) []Result {
 			cc.Seed = uint64(seed)
 			w := newWorld(cc)
 			for i, p := range Policies {
-				r := w.run(p)
+				r := w.run(p, nil)
 				mu.Lock()
 				out[i].Policy = p
 				out[i].Failed += r.Failed / float64(n)
