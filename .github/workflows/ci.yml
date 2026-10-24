@@ -25,3 +25,16 @@ jobs:
         run: go test -race ./...
       - name: scripts
         run: for f in scripts/*.sh; do sh -n "$f"; done
+
+  interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: true
+      - name: install gobgp
+        run: go install github.com/osrg/gobgp/v3/cmd/gobgpd@v3.37.0 github.com/osrg/gobgp/v3/cmd/gobgp@v3.37.0
+      - name: interop
+        run: PATH="$(go env GOPATH)/bin:$PATH" scripts/interop.sh
