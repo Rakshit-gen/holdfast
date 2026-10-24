@@ -277,6 +277,7 @@ func TestStatusAndMetrics(t *testing.T) {
 		`holdfast_service_mode{service="dns",mode="announce"} 0`,
 		`holdfast_fleet_sites_announcing{service="dns"} 3`,
 		`holdfast_guard_holding{service="dns"} 0`,
+		`holdfast_service_changes_total{service="dns"} 1`,
 		`holdfast_bgp_established{neighbor="127.0.0.1"} 1`,
 		`holdfast_fleet_peer_reachable{site="s1"} 1`,
 	} {
