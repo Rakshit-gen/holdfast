@@ -73,3 +73,48 @@ holdfast undrain dns
 ```
 
 There is a hardened systemd unit in [examples/holdfast.service](examples/holdfast.service).
+
+## Config
+
+JSON. Unknown fields are errors, since a misspelled `min_up` quietly falling back to its default is the kind of mistake this tool exists to prevent.
+
+Top level:
+
+| field | meaning |
+|---|---|
+| `site` | this site's name, as the other sites know it |
+| `asn`, `router_id` | local AS (four-octet is fine) and BGP identifier |
+| `next_hop`, `next_hop6` | next hops for IPv4 and IPv6 routes; each is required if a service has prefixes of that family |
+| `listen` | address for incoming BGP, like `:179`; needed only for passive neighbors |
+| `api` | local API for `status`, `drain` and `/metrics`; must be loopback, since it has no auth |
+| `drain_file` | while this file exists every service at the site counts as unhealthy |
+| `graceful_shutdown` | before withdrawing, re-announce with the GRACEFUL_SHUTDOWN community (RFC 8326) for this long, up to 5m |
+
+`neighbors[]`: `address`, `port` (179), `asn`, `passive`, `local_address`, `hold_time` (90s, at least 3s), `families` (`ipv4`, `ipv6`, both by default), `max_prefixes` the peer may send (10000), `graceful_restart` (RFC 4724 restart time; off unless set). eBGP neighbors get the local AS prepended, iBGP neighbors get LOCAL_PREF 100.
+
+`services[]`:
+
+| field | meaning |
+|---|---|
+| `name`, `prefixes` | a set of prefixes announced and withdrawn together |
+| `communities`, `large_communities`, `med` | attributes on every route |
+| `degrade_prepend` | extra copies of the local AS when degraded, 0 to 10 (3) |
+| `degrade_communities` | extra communities when degraded, for routers that act on a tag rather than path length |
+| `checks[]` | all must pass; `tcp` (`addr`), `http` (`url`, `host`, `status`, `contains`; redirects are not followed), `dns` (`server`, `name`), `exec` (`command` as a list, no shell), `absent` (`path`) |
+| `interval`, `timeout` | how often to check (2s) and how long each check may take (the interval) |
+| `rise`, `fall` | passes in a row to come up (2) and failures in a row to go down (3) |
+| `damping` | hold down a flapping check: penalty 1000 a fall, halving every 5m, suppressed above 2500 until under 750 |
+| `min_up`, `min_fraction` | this service's floor, replacing the fleet's |
+
+`fleet`:
+
+| field | meaning |
+|---|---|
+| `listen` | where this site serves its reports to the others |
+| `token_file` | shared bearer token, checked in constant time |
+| `peers[]` | `site` and `url` of every other site |
+| `interval` | how often to poll each peer (5s) |
+| `stale` | a report older than this counts as unknown (30s, at least twice `interval`) |
+| `min_up`, `min_fraction` | the floor: the larger of the two, and at least one site |
+| `quorum` | share of the other sites this site must see before it may withdraw (0.5) |
+| `unguarded` | withdraw on any failed check, like a plain health checker; for comparison only |
