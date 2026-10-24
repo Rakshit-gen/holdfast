@@ -302,6 +302,11 @@ func (c *Config) Check() error {
 	if n := len(f.Peers) + 1; f.MinUp > n {
 		bad("fleet.min_up is %d but there are only %d sites", f.MinUp, n)
 	}
+	// A site refreshes its own report once a second, so anything under a
+	// couple of seconds marks healthy sites unknown between refreshes.
+	if f.Stale > 0 && time.Duration(f.Stale) < 2*time.Second {
+		bad("fleet.stale must be at least 2s")
+	}
 	if f.Interval > 0 && f.Stale > 0 && f.Stale < 2*f.Interval {
 		bad("fleet.stale (%v) should be at least twice fleet.interval (%v), or one slow poll marks a site unknown",
 			time.Duration(f.Stale), time.Duration(f.Interval))
