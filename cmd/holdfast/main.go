@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Rakshit-gen/holdfast/config"
 	"github.com/Rakshit-gen/holdfast/daemon"
@@ -32,7 +33,7 @@ const usage = `holdfast announces anycast prefixes while they're healthy, and ne
 lets the whole fleet withdraw at once.
 
   holdfast run     [-config /etc/holdfast/holdfast.json]
-  holdfast check   [-config ...]
+  holdfast check   [-config ...] [-probe]
   holdfast status  [-api 127.0.0.1:9179] [-json]
   holdfast drain   [-api ...] [service]
   holdfast undrain [-api ...] [service]
@@ -102,6 +103,7 @@ func runCmd(args []string) error {
 func checkCmd(args []string) error {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	path := configFlag(fs)
+	probe := fs.Bool("probe", false, "also run every service's checks once")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -112,5 +114,28 @@ func checkCmd(args []string) error {
 	fmt.Printf("%s: ok. Site %s, %d services, %d neighbors, %d other sites, floor %d of %d sites.\n",
 		*path, cfg.Site, len(cfg.Services), len(cfg.Neighbors), len(cfg.Fleet.Peers),
 		cfg.Policy().Floor(len(cfg.Fleet.Peers)+1), len(cfg.Fleet.Peers)+1)
+	if !*probe {
+		return nil
+	}
+	failed := 0
+	for _, s := range cfg.Services {
+		p := cfg.Probe(s)
+		timeout := p.Timeout
+		if timeout == 0 {
+			timeout = 5 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		err := p.Check.Check(ctx)
+		cancel()
+		if err != nil {
+			failed++
+			fmt.Printf("  %s: failing: %v\n", s.Name, err)
+		} else {
+			fmt.Printf("  %s: passing\n", s.Name)
+		}
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d of %d services failing their checks", failed, len(cfg.Services))
+	}
 	return nil
 }
