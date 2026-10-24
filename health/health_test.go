@@ -253,3 +253,15 @@ func TestProberReportsChanges(t *testing.T) {
 		t.Fatalf("status %+v", st)
 	}
 }
+
+func TestAllNamesTheFailingCheck(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "drain")
+	os.WriteFile(f, nil, 0o644)
+	err := All{Exec{[]string{"true"}}, Absent{f}, Exec{[]string{"false"}}}.Check(context.Background())
+	if err == nil || !strings.HasPrefix(err.Error(), "absent "+f) {
+		t.Fatalf("got %v", err)
+	}
+	if err := (All{}).Check(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}

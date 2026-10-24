@@ -165,3 +165,25 @@ func (c Absent) Check(context.Context) error {
 	}
 	return err
 }
+
+// All passes when every check passes, run in order. The error names the
+// first that failed.
+type All []Check
+
+func (a All) String() string {
+	var ss []string
+	for _, c := range a {
+		ss = append(ss, c.String())
+	}
+	return strings.Join(ss, ", ")
+}
+
+// Check runs each check until one fails.
+func (a All) Check(ctx context.Context) error {
+	for _, c := range a {
+		if err := c.Check(ctx); err != nil {
+			return fmt.Errorf("%s: %w", c, err)
+		}
+	}
+	return nil
+}
