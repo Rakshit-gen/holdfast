@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -114,11 +115,11 @@ func checkCmd(args []string) error {
 		return err
 	}
 	sites := len(cfg.Fleet.Peers) + 1
-	fmt.Printf("%s: ok. Site %s, %d neighbors, %d sites in the fleet.\n", *path, cfg.Site, len(cfg.Neighbors), sites)
+	fmt.Printf("%s: ok. Site %s, %s, %d sites in the fleet.\n", *path, cfg.Site, plural(len(cfg.Neighbors), "neighbor"), sites)
 	for _, s := range cfg.Services {
 		pol := cfg.Policy(s)
 		if pol.Unguarded {
-			fmt.Printf("  %s: %s, unguarded, so every site may withdraw at once\n", s.Name, prefixes(len(s.Prefixes)))
+			fmt.Printf("  %s: %s, unguarded, so every site may withdraw at once\n", s.Name, plural(len(s.Prefixes), "prefix"))
 			continue
 		}
 		note := ""
@@ -126,7 +127,7 @@ func checkCmd(args []string) error {
 			note = "; no site can ever withdraw, only degrade"
 		}
 		fmt.Printf("  %s: %s, at least %d of %d sites keep announcing%s\n",
-			s.Name, prefixes(len(s.Prefixes)), pol.Floor(sites), sites, note)
+			s.Name, plural(len(s.Prefixes), "prefix"), pol.Floor(sites), sites, note)
 	}
 	if !*probe {
 		return nil
@@ -154,9 +155,13 @@ func checkCmd(args []string) error {
 	return nil
 }
 
-func prefixes(n int) string {
+// plural handles the two nouns check needs: prefix and neighbor.
+func plural(n int, noun string) string {
 	if n == 1 {
-		return "1 prefix"
+		return "1 " + noun
 	}
-	return fmt.Sprintf("%d prefixes", n)
+	if strings.HasSuffix(noun, "x") {
+		return fmt.Sprintf("%d %ses", n, noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }
