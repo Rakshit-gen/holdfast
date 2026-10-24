@@ -33,3 +33,43 @@ The guard's rules, in order:
 - Otherwise every unhealthy site runs the same calculation. Sites that are stale or have never reported count as unhealthy and still announcing, so they use up withdraw slots. The unhealthy sites are ranked: those already withdrawn first, so decisions stick, then by a hash of site and service name, so the same site isn't always the one kept up. The first `sites - floor` of them withdraw and the rest degrade.
 
 The floor is the larger of `min_up` sites and `min_fraction` of the fleet, and at least one. A service can set its own.
+
+## Install
+
+```
+curl -fsSL https://raw.githubusercontent.com/Rakshit-gen/holdfast/main/scripts/install.sh | sh
+```
+
+That downloads the release for your OS and architecture, checks its SHA256, and puts `holdfast` in `~/.local/bin`. Or build it:
+
+```
+go install github.com/Rakshit-gen/holdfast/cmd/holdfast@latest
+```
+
+## Quick start
+
+Write a config (see [examples/holdfast.json](examples/holdfast.json) for a four-site fleet), then:
+
+```
+holdfast check -config /etc/holdfast/holdfast.json          # validate it
+holdfast check -config /etc/holdfast/holdfast.json -probe   # and run every check once
+holdfast run   -config /etc/holdfast/holdfast.json
+```
+
+`check` reports every problem in the config at once, and prints each service's floor so you can see what the guard will hold:
+
+```
+examples/holdfast.json: ok. Site ams1, 2 neighbors, 4 sites in the fleet.
+  dns: 2 prefixes, at least 3 of 4 sites keep announcing
+  web: 1 prefixes, at least 2 of 4 sites keep announcing
+```
+
+While it runs:
+
+```
+holdfast status            # services, modes, the fleet's view, BGP sessions
+holdfast drain dns         # mark dns unhealthy here; the guard decides if it may leave
+holdfast undrain dns
+```
+
+There is a hardened systemd unit in [examples/holdfast.service](examples/holdfast.service).
