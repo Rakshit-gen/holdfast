@@ -23,26 +23,39 @@ func fleetOf(n int, sick ...int) ([]Report, []string) {
 	return rs, names
 }
 
-// cur is the mode a site last reported.
+// cur is the mode a site last reported. A sick site that reported
+// announcing has degraded since, which it must do before it may withdraw.
 func cur(site string, rs []Report) Mode {
 	for _, r := range rs {
 		if r.Site == site {
+			if !r.Healthy && r.Mode == Announce {
+				return Degrade
+			}
 			return r.Mode
 		}
 	}
 	return Withdraw
 }
 
+// decide runs Decide for a site that took its mode a second before the
+// reports in rs were written, so it has heard from everyone since.
+func decide(svc, site string, healthy bool, mode Mode, rs []Report, names []string, p Policy, now time.Time) Decision {
+	return Decide(Input{
+		Service: svc, Site: site, Healthy: healthy, Mode: mode, Since: t0.Add(-time.Second),
+		Fleet: rs, Sites: names, Now: now,
+	}, p)
+}
+
 func TestHealthyAnnounces(t *testing.T) {
 	rs, names := fleetOf(5)
-	if d := Decide("dns", "site00", true, cur("site00", rs), rs, names, Policy{MinUp: 3}, t0); d.Mode != Announce {
+	if d := decide("dns", "site00", true, cur("site00", rs), rs, names, Policy{MinUp: 3}, t0); d.Mode != Announce {
 		t.Fatal(d)
 	}
 }
 
 func TestOneSickSiteWithdraws(t *testing.T) {
 	rs, names := fleetOf(10, 3)
-	if d := Decide("dns", "site03", false, cur("site03", rs), rs, names, Policy{MinUp: 3}, t0); d.Mode != Withdraw {
+	if d := decide("dns", "site03", false, cur("site03", rs), rs, names, Policy{MinUp: 3}, t0); d.Mode != Withdraw {
 		t.Fatal(d)
 	}
 }
@@ -58,7 +71,7 @@ func TestEveryoneSickKeepsTheFloor(t *testing.T) {
 	for _, p := range []Policy{{MinUp: 3}, {MinFraction: 0.5}, {MinUp: 2, MinFraction: 0.25}} {
 		withdrawn := 0
 		for _, s := range names {
-			if Decide("dns", s, false, cur(s, rs), rs, names, p, t0).Mode == Withdraw {
+			if decide("dns", s, false, cur(s, rs), rs, names, p, t0).Mode == Withdraw {
 				withdrawn++
 			}
 		}
@@ -71,7 +84,7 @@ func TestEveryoneSickKeepsTheFloor(t *testing.T) {
 func TestUnguardedWithdrawsEverything(t *testing.T) {
 	rs, names := fleetOf(4, 0, 1, 2, 3)
 	for _, s := range names {
-		if Decide("dns", s, false, cur(s, rs), rs, names, Policy{MinUp: 2, Unguarded: true}, t0).Mode != Withdraw {
+		if decide("dns", s, false, cur(s, rs), rs, names, Policy{MinUp: 2, Unguarded: true}, t0).Mode != Withdraw {
 			t.Fatal(s)
 		}
 	}
@@ -83,12 +96,12 @@ func TestFailStaticWithoutQuorum(t *testing.T) {
 	for i := 1; i <= 6; i++ {
 		rs[i].At = t0.Add(-time.Minute)
 	}
-	d := Decide("dns", "site00", false, cur("site00", rs), rs, names, Policy{MinUp: 1}, t0)
+	d := decide("dns", "site00", false, cur("site00", rs), rs, names, Policy{MinUp: 1}, t0)
 	if d.Mode != Degrade {
 		t.Fatal(d)
 	}
 	// A site that never reported at all counts the same.
-	d = Decide("dns", "site00", false, cur("site00", rs), rs[:1], names, Policy{MinUp: 1}, t0)
+	d = decide("dns", "site00", false, cur("site00", rs), rs[:1], names, Policy{MinUp: 1}, t0)
 	if d.Mode != Degrade {
 		t.Fatal(d)
 	}
@@ -101,7 +114,7 @@ func TestUnknownSitesTakeWithdrawSlots(t *testing.T) {
 	rs[4].At = t0.Add(-time.Hour)
 	withdrawn := 0
 	for _, s := range names[:2] {
-		if Decide("dns", s, false, cur(s, rs), rs, names, Policy{MinUp: 3}, t0).Mode == Withdraw {
+		if decide("dns", s, false, cur(s, rs), rs, names, Policy{MinUp: 3}, t0).Mode == Withdraw {
 			withdrawn++
 		}
 	}
@@ -118,7 +131,7 @@ func TestWithdrawnSitesKeepTheirSlot(t *testing.T) {
 		rs[0].Mode, rs[1].Mode = Announce, Announce
 		rs[first].Mode = Withdraw
 		for i, s := range names[:2] {
-			d := Decide("dns", s, false, cur(s, rs), rs, names, Policy{MinUp: 3}, t0)
+			d := decide("dns", s, false, cur(s, rs), rs, names, Policy{MinUp: 3}, t0)
 			if (d.Mode == Withdraw) != (i == first) {
 				t.Errorf("first=%d: %s got %v", first, s, d)
 			}
@@ -134,7 +147,7 @@ func TestRankSpreadsAcrossServices(t *testing.T) {
 	for i := range 20 {
 		svc := fmt.Sprintf("svc%d", i)
 		for _, s := range names {
-			if Decide(svc, s, false, cur(s, rs), rs, names, Policy{MinUp: 7}, t0).Mode == Withdraw {
+			if decide(svc, s, false, cur(s, rs), rs, names, Policy{MinUp: 7}, t0).Mode == Withdraw {
 				picked[s] = true
 			}
 		}
@@ -167,8 +180,30 @@ func TestFailStaticKeepsAWithdrawnSiteOut(t *testing.T) {
 	// A site starting up, cut off from the fleet, with failing checks,
 	// must not announce at all.
 	_, names := fleetOf(5, 0)
-	d := Decide("dns", "site00", false, Withdraw, nil, names, Policy{MinUp: 1}, t0)
+	d := decide("dns", "site00", false, Withdraw, nil, names, Policy{MinUp: 1}, t0)
 	if d.Mode != Withdraw {
+		t.Fatal(d)
+	}
+}
+
+func TestSickSiteDegradesFirst(t *testing.T) {
+	rs, names := fleetOf(10, 3)
+	if d := decide("dns", "site03", false, Announce, rs, names, Policy{MinUp: 3}, t0); d.Mode != Degrade {
+		t.Fatal(d)
+	}
+}
+
+func TestDegradedSiteWaitsForNewerReports(t *testing.T) {
+	// site03 degraded at t0, but site05's latest report is from before
+	// that, so site05 may have gone sick too without site03 knowing.
+	rs, names := fleetOf(10, 3)
+	in := Input{Service: "dns", Site: "site03", Mode: Degrade, Since: t0, Fleet: rs, Sites: names, Now: t0.Add(time.Second)}
+	rs[5].At = t0.Add(-time.Second)
+	if d := Decide(in, Policy{MinUp: 3}); d.Mode != Degrade {
+		t.Fatal(d)
+	}
+	rs[5].At = t0
+	if d := Decide(in, Policy{MinUp: 3}); d.Mode != Withdraw {
 		t.Fatal(d)
 	}
 }

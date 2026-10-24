@@ -204,7 +204,10 @@ func (d *Daemon) decide(now time.Time) {
 	var routes []bgp.Route
 	for name, s := range d.svc {
 		s.healthy = up[name] && !s.drained
-		dec := guard.Decide(name, d.cfg.Site, s.healthy, s.mode, d.fleet.View(name), d.fleet.Sites(), d.cfg.Policy(), now)
+		dec := guard.Decide(guard.Input{
+			Service: name, Site: d.cfg.Site, Healthy: s.healthy, Mode: s.mode, Since: s.since,
+			Fleet: d.fleet.View(name), Sites: d.fleet.Sites(), Now: now,
+		}, d.cfg.Policy())
 		if dec.Mode != s.mode {
 			d.logf("service %s: %s -> %s (%s)", name, s.mode, dec.Mode, dec.Reason)
 			if dec.Mode == guard.Degrade {

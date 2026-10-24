@@ -89,46 +89,68 @@ type Decision struct {
 	Reason string
 }
 
-// Decide picks this site's mode for one service. current is the mode the
-// site has now. fleet holds the latest report from every site; sites, if
-// not nil, is every site that should exist, so one that has never
-// reported counts as unknown rather than being forgotten.
+// Input is what a site knows when it decides one service's mode.
+type Input struct {
+	Service string
+	Site    string
+	Healthy bool
+	// Mode is the site's mode now, and Since when it took it.
+	Mode  Mode
+	Since time.Time
+	// Fleet holds the latest report from every site. Sites, if not nil,
+	// is every site that should exist, so one that has never reported
+	// counts as unknown rather than being forgotten.
+	Fleet []Report
+	Sites []string
+	Now   time.Time
+}
+
+// Decide picks this site's mode for one service.
 //
-// Every site runs the same calculation, so they agree on who withdraws
-// without talking it over: the unhealthy sites are ranked, those already
-// withdrawn first so decisions stick, then by a hash of site and service
-// so the same site isn't always the one held up. Only the first few, as
-// many as the floor leaves room for, withdraw. Two sites deciding on
-// different views can both withdraw for a moment; the next round, with
-// both reports in, puts one of them back.
-func Decide(service, self string, healthy bool, current Mode, fleet []Report, sites []string, p Policy, now time.Time) Decision {
-	if healthy {
+// A site that turns unhealthy degrades first. It withdraws only once
+// every fresh report from the other sites is newer than that, so if many
+// sites failed in the same moment, each knows it before anyone leaves.
+// Without that step they would all see each other's old healthy reports
+// and all withdraw together.
+//
+// Then every site runs the same calculation, so they agree on who
+// withdraws without talking it over: the unhealthy sites are ranked,
+// those already withdrawn first so decisions stick, then by a hash of
+// site and service so the same site isn't always the one held up. Only
+// the first few, as many as the floor leaves room for, withdraw.
+func Decide(in Input, p Policy) Decision {
+	if in.Healthy {
 		return Decision{Announce, "healthy"}
 	}
 	if p.Unguarded {
 		return Decision{Withdraw, "unhealthy"}
 	}
+	if in.Mode == Announce {
+		return Decision{Degrade, "unhealthy; degrading first so the other sites see it"}
+	}
 
 	all := map[string]*Report{}
-	for _, s := range sites {
+	for _, s := range in.Sites {
 		all[s] = nil
 	}
-	for i := range fleet {
-		r := &fleet[i]
+	for i := range in.Fleet {
+		r := &in.Fleet[i]
 		all[r.Site] = r
 	}
-	all[self] = &Report{Site: self, Mode: current, At: now}
+	all[in.Site] = &Report{Site: in.Site, Mode: in.Mode, At: in.Now}
 
 	// Sites we can't vouch for count as unhealthy and holding their routes:
 	// they take a withdraw slot, so the floor holds even if they did go.
 	var known, others int
 	var sick []string
+	waiting := false
 	for s, r := range all {
-		fresh := r != nil && now.Sub(r.At) <= p.stale()
-		if s != self {
+		fresh := r != nil && in.Now.Sub(r.At) <= p.stale()
+		if s != in.Site {
 			others++
 			if fresh {
 				known++
+				waiting = waiting || r.At.Before(in.Since)
 			}
 		}
 		if !fresh || !r.Healthy {
@@ -138,10 +160,13 @@ func Decide(service, self string, healthy bool, current Mode, fleet []Report, si
 	if others > 0 && float64(known) < p.quorum()*float64(others) {
 		// Fail static: keep what we have. A site that is already out, or
 		// starting up, stays out rather than announcing unchecked.
-		if current == Withdraw {
+		if in.Mode == Withdraw {
 			return Decision{Withdraw, "unhealthy, and can't see enough of the fleet to come back"}
 		}
 		return Decision{Degrade, "can't see enough of the fleet to withdraw safely"}
+	}
+	if waiting && in.Mode == Degrade {
+		return Decision{Degrade, "unhealthy; waiting for the other sites' next reports"}
 	}
 
 	n := len(all)
@@ -153,9 +178,9 @@ func Decide(service, self string, healthy bool, current Mode, fleet []Report, si
 		return 1
 	}
 	slices.SortFunc(sick, func(a, b string) int {
-		return cmp.Or(cmp.Compare(out(a), out(b)), cmp.Compare(rank(service, a), rank(service, b)), cmp.Compare(a, b))
+		return cmp.Or(cmp.Compare(out(a), out(b)), cmp.Compare(rank(in.Service, a), rank(in.Service, b)), cmp.Compare(a, b))
 	})
-	if i := slices.Index(sick, self); i < room {
+	if i := slices.Index(sick, in.Site); i < room {
 		return Decision{Withdraw, "unhealthy"}
 	}
 	return Decision{Degrade, "unhealthy, but withdrawing would leave too few sites"}
