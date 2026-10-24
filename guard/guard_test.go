@@ -207,3 +207,12 @@ func TestDegradedSiteWaitsForNewerReports(t *testing.T) {
 		t.Fatal(d)
 	}
 }
+
+func TestTheFloorNeverBringsBackAWithdrawnSite(t *testing.T) {
+	// Every site is sick and the floor wants all three up, but one that
+	// is already out, or starting, stays out until its checks pass.
+	rs, names := fleetOf(3, 0, 1, 2)
+	if d := decide("dns", "site00", false, Withdraw, rs, names, Policy{MinUp: 3}, t0); d.Mode != Withdraw {
+		t.Fatal(d)
+	}
+}

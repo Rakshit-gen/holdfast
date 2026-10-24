@@ -128,6 +128,11 @@ func Decide(in Input, p Policy) Decision {
 	if in.Mode == Announce {
 		return Decision{Degrade, "unhealthy; degrading first so the other sites see it"}
 	}
+	if in.Mode == Withdraw {
+		// The floor holds sites up; it never brings back one that is out
+		// and still failing, or one starting up that hasn't passed yet.
+		return Decision{Withdraw, "unhealthy"}
+	}
 
 	all := map[string]*Report{}
 	for _, s := range in.Sites {
@@ -158,14 +163,10 @@ func Decide(in Input, p Policy) Decision {
 		}
 	}
 	if others > 0 && float64(known) < p.quorum()*float64(others) {
-		// Fail static: keep what we have. A site that is already out, or
-		// starting up, stays out rather than announcing unchecked.
-		if in.Mode == Withdraw {
-			return Decision{Withdraw, "unhealthy, and can't see enough of the fleet to come back"}
-		}
+		// Fail static: keep what we have.
 		return Decision{Degrade, "can't see enough of the fleet to withdraw safely"}
 	}
-	if waiting && in.Mode == Degrade {
+	if waiting {
 		return Decision{Degrade, "unhealthy; waiting for the other sites' next reports"}
 	}
 

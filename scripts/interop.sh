@@ -52,6 +52,7 @@ cat >"$dir/holdfast.json" <<JSON
   "next_hop": "127.0.0.1",
   "next_hop6": "2001:db8::2",
   "api": "127.0.0.1:19179",
+  "graceful_shutdown": "3s",
   "neighbors": [
     {"address": "127.0.0.1", "port": 10179, "asn": 65000, "hold_time": "9s", "families": ["ipv4", "ipv6"]}
   ],
@@ -97,7 +98,12 @@ wait_for() {
 
 rib4() { "$GOBGP" $api global rib -a ipv4; }
 rib6() { "$GOBGP" $api global rib -a ipv6; }
-has() { pattern="$1"; shift; "$@" | grep -q -- "$pattern"; }
+has() {
+	flags=""
+	[ "$1" = "-i" ] && { flags="-i"; shift; }
+	pattern="$1"; shift
+	"$@" | grep -q $flags -- "$pattern"
+}
 lacks() { pattern="$1"; shift; ! "$@" | grep -q -- "$pattern"; }
 # The AS path column for a prefix.
 path_is() { rib4 | grep 198.51.100.53/32 | grep -q -- "$1"; }
@@ -116,5 +122,6 @@ rm "$dir/drain"
 wait_for "healthy again, plain path" lacks "65001 65001" rib4
 
 kill "$hf"
+wait_for "marked for graceful shutdown when holdfast stops" has -i graceful rib4
 wait_for "withdrawn when holdfast stops" lacks 198.51.100.53/32 rib4
 echo "interop passed"
