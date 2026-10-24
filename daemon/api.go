@@ -12,9 +12,13 @@ import (
 	"github.com/Rakshit-gen/holdfast/bgp"
 )
 
+// Version is reported in the status; the command sets it at build time.
+var Version = "dev"
+
 // Status is what GET /v1/status returns.
 type Status struct {
 	Site      string            `json:"site"`
+	Version   string            `json:"version"`
 	Services  []ServiceStatus   `json:"services"`
 	Neighbors []NeighborStatus  `json:"neighbors"`
 	Fleet     map[string]string `json:"fleet_errors"`
@@ -62,7 +66,7 @@ func (d *Daemon) Status() Status {
 	for _, st := range d.prober.Status() {
 		errs[st.Name] = st.LastErr
 	}
-	out := Status{Site: d.cfg.Site, Fleet: d.fleet.PeerErrors()}
+	out := Status{Site: d.cfg.Site, Version: Version, Fleet: d.fleet.PeerErrors()}
 	d.mu.Lock()
 	for name, s := range d.svc {
 		ss := ServiceStatus{

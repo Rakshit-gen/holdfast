@@ -55,7 +55,7 @@ func statusCmd(args []string) error {
 }
 
 func printStatus(w io.Writer, st daemon.Status, now time.Time) {
-	fmt.Fprintf(w, "site %s\n\n", st.Site)
+	fmt.Fprintf(w, "site %s, holdfast %s\n\n", st.Site, st.Version)
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "SERVICE\tHEALTHY\tMODE\tFOR\tFLEET\tREASON")
 	for _, s := range st.Services {

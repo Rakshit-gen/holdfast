@@ -90,6 +90,7 @@ func runCmd(args []string) error {
 	if err != nil {
 		return err
 	}
+	daemon.Version = version
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 	d, err := daemon.New(cfg, logger.Printf)
 	if err != nil {
