@@ -98,12 +98,7 @@ wait_for() {
 
 rib4() { "$GOBGP" $api global rib -a ipv4; }
 rib6() { "$GOBGP" $api global rib -a ipv6; }
-has() {
-	flags=""
-	[ "$1" = "-i" ] && { flags="-i"; shift; }
-	pattern="$1"; shift
-	"$@" | grep -q $flags -- "$pattern"
-}
+has() { pattern="$1"; shift; "$@" | grep -q -- "$pattern"; }
 lacks() { pattern="$1"; shift; ! "$@" | grep -q -- "$pattern"; }
 # The AS path column for a prefix.
 path_is() { rib4 | grep 198.51.100.53/32 | grep -q -- "$1"; }
@@ -122,6 +117,7 @@ rm "$dir/drain"
 wait_for "healthy again, plain path" lacks "65001 65001" rib4
 
 kill "$hf"
-wait_for "marked for graceful shutdown when holdfast stops" has -i graceful rib4
+# GoBGP prints 65535:0 by its draft name, planned-shut.
+wait_for "marked for graceful shutdown when holdfast stops" has planned-shut rib4
 wait_for "withdrawn when holdfast stops" lacks 198.51.100.53/32 rib4
 echo "interop passed"
