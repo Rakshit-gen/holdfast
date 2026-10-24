@@ -37,6 +37,7 @@ type Daemon struct {
 	mu      sync.Mutex
 	svc     map[string]*serviceState
 	stopped bool
+	decided time.Time // last run of the guard
 }
 
 type serviceState struct {
@@ -235,6 +236,7 @@ func (d *Daemon) decide(now time.Time) {
 	if d.stopped {
 		return
 	}
+	d.decided = now
 	var routes []bgp.Route
 	for name, s := range d.svc {
 		s.healthy = up[name] && !s.drained

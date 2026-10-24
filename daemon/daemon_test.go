@@ -267,6 +267,9 @@ func TestStatusAndMetrics(t *testing.T) {
 	if st.Services[0].Mode != "announce" || st.Neighbors[0].State != "established" || st.Neighbors[0].Sent != 1 {
 		t.Fatalf("status %+v", st)
 	}
+	if resp, err := http.Get(sites[0].api + "/v1/healthz"); err != nil || resp.StatusCode != 200 {
+		t.Fatalf("healthz %v %v", resp, err)
+	}
 	resp, err := http.Get(sites[0].api + "/metrics")
 	if err != nil {
 		t.Fatal(err)

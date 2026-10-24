@@ -97,6 +97,7 @@ func (d *Daemon) Status() Status {
 // API serves the local control API:
 //
 //	GET  /v1/status
+//	GET  /v1/healthz                (200 while the guard keeps running)
 //	POST /v1/drain?service=NAME     (all services without service=)
 //	POST /v1/undrain?service=NAME
 //	GET  /metrics
@@ -117,6 +118,18 @@ func (d *Daemon) API() http.Handler {
 			w.WriteHeader(http.StatusNoContent)
 		}
 	}
+	mux.HandleFunc("GET /v1/healthz", func(w http.ResponseWriter, r *http.Request) {
+		d.mu.Lock()
+		last := d.decided
+		d.mu.Unlock()
+		// The guard runs every second; if it hasn't for a while, the
+		// daemon is stuck and routes may be stale.
+		if age := time.Since(last); age > 5*time.Second {
+			http.Error(w, fmt.Sprintf("guard last ran %v ago", age.Round(time.Second)), http.StatusServiceUnavailable)
+			return
+		}
+		fmt.Fprintln(w, "ok")
+	})
 	mux.HandleFunc("POST /v1/drain", drain(true))
 	mux.HandleFunc("POST /v1/undrain", drain(false))
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
