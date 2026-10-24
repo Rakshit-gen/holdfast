@@ -80,6 +80,9 @@ func New(cfg *config.Config, logf func(string, ...any)) (*Daemon, error) {
 	f := cfg.Fleet
 	d.fleet = &fleet.Node{Site: cfg.Site, Interval: time.Duration(f.Interval), Logf: logf}
 	if f.TokenFile != "" {
+		if fi, err := os.Stat(f.TokenFile); err == nil && fi.Mode().Perm()&0o004 != 0 {
+			logf("warning: %s, the fleet token, is readable by every user on this host", f.TokenFile)
+		}
 		b, err := os.ReadFile(f.TokenFile)
 		if err != nil {
 			return nil, err

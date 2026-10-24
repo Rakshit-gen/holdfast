@@ -419,3 +419,28 @@ func TestUnknownBGPPeerIsClosed(t *testing.T) {
 		t.Fatalf("logs:\n%s", logs.String())
 	}
 }
+
+func TestWorldReadableTokenWarns(t *testing.T) {
+	tok := filepath.Join(t.TempDir(), "token")
+	os.WriteFile(tok, []byte("s3cret\n"), 0o644)
+	cfg := &config.Config{
+		Site: "s0", ASN: 64512, RouterID: netip.MustParseAddr("10.0.0.1"), NextHop: netip.MustParseAddr("10.0.0.1"),
+		Neighbors: []config.Neighbor{{Address: netip.MustParseAddr("10.9.9.1"), ASN: 64513}},
+		Services:  []config.Service{{Name: "dns", Prefixes: []string{"198.51.100.53/32"}, Checks: []config.Check{{Type: "absent", Path: "/nonexistent"}}}},
+		Fleet:     config.Fleet{TokenFile: tok},
+	}
+	var logs strings.Builder
+	d, err := New(cfg, func(f string, a ...any) { fmt.Fprintf(&logs, f+"\n", a...) })
+	if err != nil || d.fleet.Token != "s3cret" {
+		t.Fatal(err)
+	}
+	if !strings.Contains(logs.String(), "readable by every user") {
+		t.Fatalf("no warning in %q", logs.String())
+	}
+	os.Chmod(tok, 0o600)
+	logs.Reset()
+	New(cfg, func(f string, a ...any) { fmt.Fprintf(&logs, f+"\n", a...) })
+	if logs.Len() != 0 {
+		t.Fatalf("warned about a private file: %q", logs.String())
+	}
+}
