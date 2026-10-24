@@ -1,0 +1,49 @@
+{
+  "site": "ams1",
+  "asn": 64512,
+  "router_id": "192.0.2.10",
+  "next_hop": "192.0.2.10",
+  "next_hop6": "2001:db8:10::10",
+  "api": "127.0.0.1:9179",
+  "drain_file": "/etc/holdfast/drain",
+  "neighbors": [
+    {"address": "192.0.2.1", "asn": 64513, "hold_time": "90s"},
+    {"address": "192.0.2.2", "asn": 64513, "hold_time": "90s"}
+  ],
+  "services": [
+    {
+      "name": "dns",
+      "prefixes": ["198.51.100.53/32", "2001:db8:53::/48"],
+      "communities": ["64512:53"],
+      "degrade_prepend": 3,
+      "checks": [
+        {"type": "dns", "server": "127.0.0.1:53", "name": "health.example.com"},
+        {"type": "absent", "path": "/etc/holdfast/drain-dns"}
+      ],
+      "interval": "2s",
+      "rise": 2,
+      "fall": 3,
+      "damping": true
+    },
+    {
+      "name": "web",
+      "prefixes": ["198.51.100.80/32"],
+      "checks": [
+        {"type": "http", "url": "http://127.0.0.1:8080/healthz", "contains": "ok"}
+      ]
+    }
+  ],
+  "fleet": {
+    "listen": "192.0.2.10:9180",
+    "token_file": "/etc/holdfast/fleet-token",
+    "interval": "5s",
+    "stale": "30s",
+    "min_up": 2,
+    "min_fraction": 0.5,
+    "peers": [
+      {"site": "fra1", "url": "http://192.0.2.20:9180"},
+      {"site": "lhr1", "url": "http://192.0.2.30:9180"},
+      {"site": "cdg1", "url": "http://192.0.2.40:9180"}
+    ]
+  }
+}
