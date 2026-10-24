@@ -112,6 +112,8 @@ Top level:
 |---|---|
 | `listen` | where this site serves its reports to the others |
 | `token_file` | shared bearer token, checked in constant time |
+| `tls_cert`, `tls_key` | serve reports over TLS |
+| `ca_file` | check `https://` peers against these certificates instead of the system roots |
 | `peers[]` | `site` and `url` of every other site |
 | `interval` | how often to poll each peer (5s) |
 | `stale` | a report older than this counts as unknown (30s, at least twice `interval`) |
@@ -218,7 +220,7 @@ The fleet tests run several holdfast daemons, each with its own stand-in router 
 - **Degrade is a hint.** Prepending only moves traffic for networks that prefer shorter AS paths. Networks with local preference on their own routes, or that ignore path length, keep sending to a degraded site. `degrade_communities` helps where the upstream acts on a tag.
 - **Floor without capacity.** holdfast doesn't know how much load a site can take. If the floor is two sites and they can't carry everyone, the floor keeps the service reachable but not fast.
 - **BGP coverage.** IPv4 and IPv6 unicast only. Four-octet AS, route refresh (answered, not enhanced), graceful restart (offered, as a restart time), administrative shutdown messages. No TCP MD5 or TCP-AO, no BFD, no ADD-PATH, no extended messages, no policy on routes received (holdfast counts them and enforces `max_prefixes`, nothing more).
-- **Fleet traffic is plain HTTP** with a bearer token. Use `https://` peer URLs behind a TLS proxy, or keep the fleet listener on a private network.
+- **Fleet TLS is server-side only.** Sites prove who they are with the shared token, not client certificates.
 - **Hold timers can't be turned off.** `hold_time` 0 means the 90s default.
 
 ## References
