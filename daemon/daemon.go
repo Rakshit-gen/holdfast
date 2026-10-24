@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +45,10 @@ type serviceState struct {
 	since   time.Time
 	held    int // times the guard kept this site announcing while sick
 	changes int
+	// Until leaving, a withdrawn service still announces its routes as
+	// they were in mode was, marked for graceful shutdown.
+	leaving time.Time
+	was     guard.Mode
 }
 
 // New sets up a daemon from a checked config.
@@ -213,25 +218,56 @@ func (d *Daemon) decide(now time.Time) {
 			if dec.Mode == guard.Degrade {
 				s.held++
 			}
+			if gs := time.Duration(d.cfg.GracefulShutdown); dec.Mode == guard.Withdraw && s.mode != guard.Withdraw && gs > 0 {
+				s.leaving, s.was = now.Add(gs), s.mode
+			}
 			s.mode, s.since = dec.Mode, now
 			s.changes++
 		}
 		s.reason = dec.Reason
 		d.fleet.Set(name, s.healthy, s.mode)
-		routes = append(routes, d.cfg.Routes(s.cfg, s.mode)...)
+		if s.mode == guard.Withdraw && now.Before(s.leaving) {
+			s.reason += "; graceful shutdown until " + s.leaving.Format(time.TimeOnly)
+			routes = append(routes, gracefully(d.cfg.Routes(s.cfg, s.was))...)
+		} else {
+			routes = append(routes, d.cfg.Routes(s.cfg, s.mode)...)
+		}
 	}
 	for _, sess := range d.sessions {
 		sess.Advertise(routes)
 	}
 }
 
+// gracefully marks routes with the GRACEFUL_SHUTDOWN community.
+func gracefully(routes []bgp.Route) []bgp.Route {
+	for i := range routes {
+		a := &routes[i].Attrs
+		a.Communities = append(slices.Clip(a.Communities), bgp.CommunityGracefulShutdown)
+	}
+	return routes
+}
+
 // shutdown withdraws everything and gives the sessions a moment to send
 // the withdrawals before they close. A clean stop shouldn't leave the
-// routers to find out from the hold timer.
+// routers to find out from the hold timer. With graceful_shutdown set, it
+// first marks every announced route and waits that long.
 func (d *Daemon) shutdown() {
 	d.mu.Lock()
 	d.stopped = true
+	var routes []bgp.Route
+	for _, s := range d.svc {
+		if s.mode != guard.Withdraw {
+			routes = append(routes, gracefully(d.cfg.Routes(s.cfg, s.mode))...)
+		}
+	}
 	d.mu.Unlock()
+	if gs := time.Duration(d.cfg.GracefulShutdown); gs > 0 && len(routes) > 0 {
+		d.logf("graceful shutdown: keeping routes for %v with the graceful-shutdown community", gs)
+		for _, s := range d.sessions {
+			s.Advertise(routes)
+		}
+		time.Sleep(gs)
+	}
 	for _, s := range d.sessions {
 		s.Advertise(nil)
 	}

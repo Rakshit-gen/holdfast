@@ -47,10 +47,15 @@ type Config struct {
 	// API serves status and drain on this address; keep it on loopback.
 	API string `json:"api"`
 	// DrainFile, if it exists, drains every service at this site.
-	DrainFile string     `json:"drain_file"`
-	Neighbors []Neighbor `json:"neighbors"`
-	Services  []Service  `json:"services"`
-	Fleet     Fleet      `json:"fleet"`
+	DrainFile string `json:"drain_file"`
+	// GracefulShutdown, if set, re-announces a service's routes with the
+	// GRACEFUL_SHUTDOWN community (RFC 8326) for this long before
+	// withdrawing them, so routers that honour it move traffic away while
+	// the routes still work.
+	GracefulShutdown Duration   `json:"graceful_shutdown"`
+	Neighbors        []Neighbor `json:"neighbors"`
+	Services         []Service  `json:"services"`
+	Fleet            Fleet      `json:"fleet"`
 }
 
 // Neighbor is one BGP peer.
@@ -181,6 +186,9 @@ func (c *Config) Check() error {
 	}
 	if c.NextHop6.IsValid() && !c.NextHop6.Is6() {
 		bad("next_hop6 must be IPv6")
+	}
+	if gs := time.Duration(c.GracefulShutdown); gs < 0 || gs > 5*time.Minute {
+		bad("graceful_shutdown must be 0 to 5m")
 	}
 	if len(c.Neighbors) == 0 {
 		bad("no neighbors")
