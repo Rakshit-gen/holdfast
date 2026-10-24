@@ -53,7 +53,7 @@ func TestRoutesPerMode(t *testing.T) {
 
 func TestProblemsAreAllReported(t *testing.T) {
 	_, err := Parse([]byte(`{
-		"site": "a", "asn": 64512, "router_id": "192.0.2.1",
+		"site": "a", "asn": 64512, "router_id": "192.0.2.1", "api": "0.0.0.0:9179", "graceful_shutdown": "1h",
 		"neighbors": [{"address": "192.0.2.2", "asn": 64513, "hold_time": "1s", "passive": true}],
 		"services": [
 			{"name": "dns", "prefixes": ["198.51.100.1/24"], "checks": [{"type": "ping"}]},
@@ -75,6 +75,8 @@ func TestProblemsAreAllReported(t *testing.T) {
 		"appears twice (or is this site)",
 		"min_up is 5 but there are only 2 sites",
 		"fleet.listen is required",
+		"api must listen on a loopback address",
+		"graceful_shutdown must be 0 to 5m",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("missing %q in:\n%v", want, err)
@@ -93,5 +95,16 @@ func TestSyntaxErrorsHaveLines(t *testing.T) {
 	_, err := Parse([]byte("{\n\"site\": \"a\",\n}"))
 	if err == nil || !strings.Contains(err.Error(), "line 3") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestLoopback(t *testing.T) {
+	for addr, want := range map[string]bool{
+		"127.0.0.1:9179": true, "[::1]:9179": true, "localhost:9179": true,
+		"0.0.0.0:9179": false, ":9179": false, "192.0.2.1:9179": false, "127.0.0.1": false,
+	} {
+		if got := loopback(addr); got != want {
+			t.Errorf("%s: %v", addr, got)
+		}
 	}
 }

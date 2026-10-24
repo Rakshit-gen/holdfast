@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"os"
 	"strings"
@@ -190,6 +191,10 @@ func (c *Config) Check() error {
 	if gs := time.Duration(c.GracefulShutdown); gs < 0 || gs > 5*time.Minute {
 		bad("graceful_shutdown must be 0 to 5m")
 	}
+	if c.API != "" && !loopback(c.API) {
+		// The API drains services and has no authentication.
+		bad("api must listen on a loopback address like 127.0.0.1:9179, not %q", c.API)
+	}
 	if len(c.Neighbors) == 0 {
 		bad("no neighbors")
 	}
@@ -320,6 +325,18 @@ func (c *Config) Check() error {
 			time.Duration(f.Stale), time.Duration(f.Interval))
 	}
 	return errors.Join(errs...)
+}
+
+func loopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && ip.IsLoopback()
 }
 
 func (ch Check) check() error {
