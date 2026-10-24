@@ -5,6 +5,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"net"
 	"net/http"
@@ -29,6 +31,7 @@ type Daemon struct {
 	sessions map[netip.Addr]*bgp.Session
 	prober   *health.Prober
 	fleet    *fleet.Node
+	fleetTLS *tls.Config // nil serves the fleet listener in plain HTTP
 	kick     chan struct{}
 
 	mu      sync.Mutex
@@ -88,6 +91,28 @@ func New(cfg *config.Config, logf func(string, ...any)) (*Daemon, error) {
 	for _, p := range f.Peers {
 		d.fleet.Peers = append(d.fleet.Peers, fleet.Peer{Site: p.Site, URL: p.URL})
 	}
+	if f.CAFile != "" {
+		b, err := os.ReadFile(f.CAFile)
+		if err != nil {
+			return nil, err
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(b) {
+			return nil, errors.New(f.CAFile + " has no PEM certificates")
+		}
+		timeout := time.Duration(f.Interval)
+		if timeout <= 0 {
+			timeout = 5 * time.Second
+		}
+		d.fleet.Client = &http.Client{Timeout: timeout, Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}}
+	}
+	if f.TLSCert != "" {
+		cert, err := tls.LoadX509KeyPair(f.TLSCert, f.TLSKey)
+		if err != nil {
+			return nil, err
+		}
+		d.fleetTLS = &tls.Config{Certificates: []tls.Certificate{cert}}
+	}
 	now := time.Now()
 	for _, s := range cfg.Services {
 		// Every service starts withdrawn: nothing is announced until its
@@ -108,10 +133,13 @@ func (d *Daemon) poke() {
 // and closes the sessions.
 func (d *Daemon) Run(ctx context.Context) error {
 	var servers []*http.Server
-	listen := func(addr string, h http.Handler) error {
+	listen := func(addr string, h http.Handler, tc *tls.Config) error {
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
 			return err
+		}
+		if tc != nil {
+			ln = tls.NewListener(ln, tc)
 		}
 		srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
 		servers = append(servers, srv)
@@ -119,14 +147,14 @@ func (d *Daemon) Run(ctx context.Context) error {
 		return nil
 	}
 	if d.cfg.API != "" {
-		if err := listen(d.cfg.API, d.API()); err != nil {
+		if err := listen(d.cfg.API, d.API(), nil); err != nil {
 			return err
 		}
 	}
 	if d.cfg.Fleet.Listen != "" {
 		mux := http.NewServeMux()
 		mux.Handle("/v1/reports", d.fleet)
-		if err := listen(d.cfg.Fleet.Listen, mux); err != nil {
+		if err := listen(d.cfg.Fleet.Listen, mux, d.fleetTLS); err != nil {
 			return err
 		}
 	}

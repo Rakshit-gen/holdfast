@@ -118,10 +118,16 @@ type Check struct {
 
 // Fleet is the other sites and the guard's policy.
 type Fleet struct {
-	Listen    string   `json:"listen"`
-	TokenFile string   `json:"token_file"`
-	Peers     []Peer   `json:"peers"`
-	Interval  Duration `json:"interval"`
+	Listen    string `json:"listen"`
+	TokenFile string `json:"token_file"`
+	// TLSCert and TLSKey serve the fleet listener over TLS. CAFile is
+	// what https peer URLs are checked against, instead of the system
+	// roots.
+	TLSCert  string   `json:"tls_cert"`
+	TLSKey   string   `json:"tls_key"`
+	CAFile   string   `json:"ca_file"`
+	Peers    []Peer   `json:"peers"`
+	Interval Duration `json:"interval"`
 	// MinUp and MinFraction set how many sites must keep announcing each
 	// service; the larger wins.
 	MinUp       int      `json:"min_up"`
@@ -313,6 +319,9 @@ func (c *Config) Check() error {
 			bad("fleet.peers[%d]: site %q appears twice (or is this site)", i, p.Site)
 		}
 		seenP[p.Site] = true
+	}
+	if (f.TLSCert == "") != (f.TLSKey == "") {
+		bad("fleet.tls_cert and fleet.tls_key go together")
 	}
 	if len(f.Peers) > 0 && f.Listen == "" {
 		bad("fleet.listen is required when there are peers, so they can see this site")

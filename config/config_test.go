@@ -60,7 +60,7 @@ func TestProblemsAreAllReported(t *testing.T) {
 			{"name": "dns", "prefixes": ["198.51.100.1/24"], "checks": [{"type": "ping"}]},
 			{"name": "web", "prefixes": ["198.51.100.0/24"], "checks": []}
 		],
-		"fleet": {"min_up": 5, "peers": [{"site": "a", "url": "http://x"}]}
+		"fleet": {"min_up": 5, "tls_cert": "cert.pem", "peers": [{"site": "a", "url": "http://x"}]}
 	}`))
 	if err == nil {
 		t.Fatal("bad config accepted")
@@ -78,6 +78,7 @@ func TestProblemsAreAllReported(t *testing.T) {
 		"fleet.listen is required",
 		"api must listen on a loopback address",
 		"graceful_shutdown must be 0 to 5m",
+		"tls_cert and fleet.tls_key go together",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("missing %q in:\n%v", want, err)
