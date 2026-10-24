@@ -243,6 +243,21 @@ The fleet tests run several holdfast daemons, each with its own stand-in router 
 
 `scripts/interop.sh` runs holdfast against GoBGP v3.37.0 and checks, through `gobgp`, that the session comes up, IPv4 and IPv6 (MP_REACH) prefixes and communities arrive, a failing check prepends the path for both families, recovery restores it, and stopping marks the routes for graceful shutdown and then withdraws them. CI runs it on every push.
 
+## Code
+
+| package | |
+|---|---|
+| `bgp` | messages, capabilities, path attributes, update planning, and the session state machine |
+| `health` | the checks, rise and fall, damping, and the prober that runs them |
+| `guard` | `Decide`: one site's mode for one service, from its health and the fleet's reports |
+| `fleet` | serving this site's reports and polling the others |
+| `config` | the JSON file, its validation, and turning it into sessions, probes and routes |
+| `daemon` | everything above wired together, plus the local API and metrics |
+| `sim` | the invented-world simulator behind `sim`, `bench` and `replay` |
+| `cmd/holdfast` | the command |
+
+The guard is a pure function with no I/O, so the rules above are tested directly, including a randomized test that no set of fleet states lets new sites leave below the floor.
+
 ## Limits
 
 - **Brief overshoot.** Each site decides from its own view of the fleet. If two sites see a third differently (one has a newer report than the other), their rankings can differ and both may withdraw. A withdrawn site stays out while it is unhealthy, so this lasts until one of them recovers. Unknown sites take withdraw slots, which keeps this on the safe side in most cases but not all.
