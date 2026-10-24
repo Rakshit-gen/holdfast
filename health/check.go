@@ -184,7 +184,8 @@ func (c Absent) String() string { return "absent " + c.Path }
 func (c Absent) Check(context.Context) error {
 	_, err := os.Stat(c.Path)
 	if err == nil {
-		return fmt.Errorf("%s exists", c.Path)
+		// The caller names the check, path included.
+		return errors.New("exists")
 	}
 	if errors.Is(err, os.ErrNotExist) {
 		return nil

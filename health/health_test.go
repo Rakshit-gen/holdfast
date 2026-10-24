@@ -190,8 +190,8 @@ func TestExecAndAbsent(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.WriteFile(f, nil, 0o644)
-	if err := (Absent{f}).Check(ctx); err == nil {
-		t.Fatal("drain file ignored")
+	if err := (All{Absent{f}}).Check(ctx); err == nil || err.Error() != "absent "+f+": exists" {
+		t.Fatalf("drain file: %v", err)
 	}
 }
 
