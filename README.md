@@ -127,6 +127,14 @@ Top level:
 | `quorum` | share of the other sites this site must see before it may withdraw (0.5) |
 | `unguarded` | withdraw on any failed check, like a plain health checker; for comparison only |
 
+## Choosing the floor
+
+The floor answers one question: if every check fails at once and the checks are wrong, how many sites does it take to carry all the traffic? Set `min_up` to that, plus one for a site that's down for maintenance. `min_fraction` is the same idea for fleets that grow, and the larger of the two wins.
+
+Too low and a false alarm leaves too few sites, which stay reachable but overloaded. Too high and in a real regional outage the floor keeps broken sites announcing, degraded, and some users reach them. The simulator's second table shows that cost growing with the floor.
+
+A service can set its own floor. DNS, which everything else depends on, can ask for more sites than a web service.
+
 ## Running it
 
 **Starting.** Every service starts withdrawn and stays that way until its checks pass `rise` times. A restarted holdfast doesn't announce a service it hasn't checked.
