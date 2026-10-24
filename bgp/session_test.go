@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -232,5 +233,55 @@ func TestPlanPacksAndGroups(t *testing.T) {
 	// The input routes must not have been prepended in place.
 	if rs[0].Attrs.PathLen() != 0 {
 		t.Fatal("Plan changed its input")
+	}
+}
+
+func TestSessionAnswersRouteRefresh(t *testing.T) {
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	defer ln.Close()
+	pf := netip.MustParsePrefix("198.51.100.0/24")
+	got := make(chan error, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			got <- err
+			return
+		}
+		defer c.Close()
+		c.SetDeadline(time.Now().Add(5 * time.Second))
+		Read(c)
+		b, _ := Marshal(&Open{AS: 64513, HoldTime: 3, ID: netip.MustParseAddr("10.0.0.2"), FourOctet: true, RouteRefresh: true, Families: []Family{IPv4Unicast}})
+		c.Write(b)
+		ka, _ := Marshal(Keepalive{})
+		c.Write(ka)
+		// Wait for the route and the End-of-RIB, then ask again.
+		announced := func() bool {
+			for {
+				m, err := Read(c)
+				if err != nil {
+					got <- err
+					return false
+				}
+				if u, ok := m.(*Update); ok && slices.Contains(u.Announce, pf) {
+					return true
+				}
+			}
+		}
+		if !announced() {
+			return
+		}
+		rr, _ := Marshal(&RouteRefresh{IPv4Unicast})
+		c.Write(rr)
+		if announced() {
+			got <- nil
+		}
+	}()
+	ac := cfg(64512, "10.0.0.1")
+	ac.PeerAS, ac.Peer, ac.Retry = 64513, netip.MustParseAddrPort(ln.Addr().String()), time.Hour
+	a := NewSession(ac)
+	a.Advertise([]Route{{Prefix: pf}})
+	start(t, a)
+	if err := <-got; err != nil {
+		t.Fatal(err)
 	}
 }

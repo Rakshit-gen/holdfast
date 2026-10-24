@@ -431,6 +431,15 @@ func (s *Session) run(ctx context.Context, nc net.Conn) error {
 				if err := s.receive(m); err != nil {
 					return s.fail(c, err)
 				}
+			case *RouteRefresh:
+				// The peer asks for everything in a family again, say after
+				// changing its import policy. Families we never offered
+				// are ignored, as RFC 2918 says.
+				if established && peer.Supports(m.Family) && slices.Contains(s.cfg.Families, m.Family) {
+					if err := s.resend(c, peer, sent, m.Family); err != nil {
+						return err
+					}
+				}
 			case *Notification:
 				return fmt.Errorf("peer sent %w", m)
 			case *Open:
@@ -523,6 +532,23 @@ func (s *Session) sync(c *conn, peer *Open, sent map[netip.Prefix]Route) error {
 	s.mu.Lock()
 	s.status.Sent = len(sent)
 	s.mu.Unlock()
+	return nil
+}
+
+// resend sends every route in a family again.
+func (s *Session) resend(c *conn, peer *Open, sent map[netip.Prefix]Route, f Family) error {
+	var routes []Route
+	for p, r := range sent {
+		if p.Addr().Is6() == (f == IPv6Unicast) {
+			routes = append(routes, r)
+		}
+	}
+	s.cfg.Logf("bgp %s: route refresh for %v, sending %d routes", s.name(), f, len(routes))
+	for _, u := range Plan(nil, routes, s.cfg.LocalAS, peer.AS) {
+		if err := c.send(u); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
