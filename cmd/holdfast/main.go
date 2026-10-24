@@ -23,13 +23,19 @@ var (
 	date    = "unknown"
 )
 
-const defaultConfig = "/etc/holdfast/holdfast.json"
+const (
+	defaultConfig = "/etc/holdfast/holdfast.json"
+	defaultAPI    = "127.0.0.1:9179"
+)
 
 const usage = `holdfast announces anycast prefixes while they're healthy, and never
 lets the whole fleet withdraw at once.
 
   holdfast run     [-config /etc/holdfast/holdfast.json]
   holdfast check   [-config ...]
+  holdfast status  [-api 127.0.0.1:9179] [-json]
+  holdfast drain   [-api ...] [service]
+  holdfast undrain [-api ...] [service]
   holdfast version
 
 Run a command with -h for its flags.
@@ -41,7 +47,8 @@ func main() {
 		os.Exit(2)
 	}
 	cmds := map[string]func([]string) error{
-		"run": runCmd, "check": checkCmd,
+		"run": runCmd, "check": checkCmd, "status": statusCmd,
+		"drain": drainCmd(true), "undrain": drainCmd(false),
 	}
 	name, args := os.Args[1], os.Args[2:]
 	switch name {
