@@ -190,6 +190,22 @@ func TestFailStaticKeepsAWithdrawnSiteOut(t *testing.T) {
 	}
 }
 
+func TestHoldReasonHasTheNumbers(t *testing.T) {
+	rs, names := fleetOf(10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+	held := 0
+	for _, s := range names {
+		if d := decide("dns", s, false, Degrade, rs, names, Policy{MinUp: 3}, t0); d.Held {
+			held++
+			if d.Reason != "unhealthy, but 3 of 10 sites must keep announcing" {
+				t.Fatal(d.Reason)
+			}
+		}
+	}
+	if held != 3 {
+		t.Fatalf("%d held", held)
+	}
+}
+
 func TestSickSiteDegradesFirst(t *testing.T) {
 	rs, names := fleetOf(10, 3)
 	// Not held: it will leave once it has heard from everyone.

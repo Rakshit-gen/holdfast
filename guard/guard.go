@@ -18,6 +18,7 @@ package guard
 
 import (
 	"cmp"
+	"fmt"
 	"hash/fnv"
 	"math"
 	"slices"
@@ -187,7 +188,7 @@ func Decide(in Input, p Policy) Decision {
 	if i := slices.Index(sick, in.Site); i < room {
 		return Decision{Withdraw, "unhealthy", false}
 	}
-	return Decision{Degrade, "unhealthy, but withdrawing would leave too few sites", true}
+	return Decision{Degrade, fmt.Sprintf("unhealthy, but %d of %d sites must keep announcing", n-room, n), true}
 }
 
 func rank(service, site string) uint64 {
