@@ -89,10 +89,10 @@ type Decision struct {
 	Reason string
 }
 
-// Decide picks this site's mode for one service. fleet holds the latest
-// report from every site, this one included; sites, if not nil, is every
-// site that should exist, so one that has never reported counts as
-// unknown rather than being forgotten.
+// Decide picks this site's mode for one service. current is the mode the
+// site has now. fleet holds the latest report from every site; sites, if
+// not nil, is every site that should exist, so one that has never
+// reported counts as unknown rather than being forgotten.
 //
 // Every site runs the same calculation, so they agree on who withdraws
 // without talking it over: the unhealthy sites are ranked, those already
@@ -101,7 +101,7 @@ type Decision struct {
 // many as the floor leaves room for, withdraw. Two sites deciding on
 // different views can both withdraw for a moment; the next round, with
 // both reports in, puts one of them back.
-func Decide(service, self string, healthy bool, fleet []Report, sites []string, p Policy, now time.Time) Decision {
+func Decide(service, self string, healthy bool, current Mode, fleet []Report, sites []string, p Policy, now time.Time) Decision {
 	if healthy {
 		return Decision{Announce, "healthy"}
 	}
@@ -117,11 +117,7 @@ func Decide(service, self string, healthy bool, fleet []Report, sites []string, 
 		r := &fleet[i]
 		all[r.Site] = r
 	}
-	mine := Report{Site: self, At: now}
-	if r := all[self]; r != nil {
-		mine.Mode = r.Mode
-	}
-	all[self] = &mine
+	all[self] = &Report{Site: self, Mode: current, At: now}
 
 	// Sites we can't vouch for count as unhealthy and holding their routes:
 	// they take a withdraw slot, so the floor holds even if they did go.
@@ -140,6 +136,11 @@ func Decide(service, self string, healthy bool, fleet []Report, sites []string, 
 		}
 	}
 	if others > 0 && float64(known) < p.quorum()*float64(others) {
+		// Fail static: keep what we have. A site that is already out, or
+		// starting up, stays out rather than announcing unchecked.
+		if current == Withdraw {
+			return Decision{Withdraw, "unhealthy, and can't see enough of the fleet to come back"}
+		}
 		return Decision{Degrade, "can't see enough of the fleet to withdraw safely"}
 	}
 
