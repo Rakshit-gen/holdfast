@@ -237,7 +237,7 @@ scripts/interop.sh                               # against a real GoBGP
 
 The fleet tests run several holdfast daemons, each with its own stand-in router and a health endpoint the test turns off, and check what the routers end up with: one sick site leaves, every site sick keeps the floor, a cut-off site fails static, a stop withdraws before closing.
 
-`scripts/interop.sh` runs holdfast against GoBGP v3.37.0 and checks, through `gobgp`, that the session comes up, IPv4 and IPv6 (MP_REACH) prefixes and communities arrive, a failing check prepends the path, recovery restores it, and stopping marks the routes for graceful shutdown and then withdraws them. CI runs it on every push.
+`scripts/interop.sh` runs holdfast against GoBGP v3.37.0 and checks, through `gobgp`, that the session comes up, IPv4 and IPv6 (MP_REACH) prefixes and communities arrive, a failing check prepends the path for both families, recovery restores it, and stopping marks the routes for graceful shutdown and then withdraws them. CI runs it on every push.
 
 ## Limits
 
