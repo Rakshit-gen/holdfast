@@ -118,3 +118,26 @@ Top level:
 | `min_up`, `min_fraction` | the floor: the larger of the two, and at least one site |
 | `quorum` | share of the other sites this site must see before it may withdraw (0.5) |
 | `unguarded` | withdraw on any failed check, like a plain health checker; for comparison only |
+
+## Running it
+
+**Starting.** Every service starts withdrawn and stays that way until its checks pass `rise` times. A restarted holdfast doesn't announce a service it hasn't checked.
+
+**Stopping.** On SIGTERM or SIGINT holdfast marks every route for graceful shutdown (if `graceful_shutdown` is set), waits that long, withdraws everything, then closes each session with an administrative shutdown NOTIFICATION that says why (RFC 8203). Routers don't have to wait out the hold timer.
+
+**Draining.** `holdfast drain [service]`, or `touch` the `drain_file`, marks services unhealthy at this site. The guard still decides whether the site may leave, so draining one site at a time is safe and draining all of them at once isn't possible. The status shows what the guard did and why.
+
+**Watching.** `GET /metrics` on the API address serves Prometheus text:
+
+| metric | |
+|---|---|
+| `holdfast_service_healthy{service}` | checks pass here |
+| `holdfast_service_mode{service,mode}` | 0 announce, 1 degrade, 2 withdraw |
+| `holdfast_guard_held_total{service}` | times the guard kept this site up while it was unhealthy |
+| `holdfast_fleet_sites_announcing{service}` | sites announcing, as this site sees them |
+| `holdfast_fleet_peer_reachable{site}` | the last poll of that site worked |
+| `holdfast_bgp_established{neighbor}` | session state |
+| `holdfast_bgp_prefixes_sent{neighbor}` | prefixes the neighbor has from us |
+| `holdfast_bgp_flaps_total{neighbor}` | times the session dropped |
+
+`holdfast_guard_held_total` going up is the one to alert on: a site is unhealthy and the floor is holding it up, so either the floor is protecting you from a bad check or more of the fleet is broken than the floor allows to leave.
