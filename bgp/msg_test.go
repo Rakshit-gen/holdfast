@@ -63,6 +63,19 @@ func TestNotificationShutdownMessage(t *testing.T) {
 	}
 }
 
+func TestRouteRefresh(t *testing.T) {
+	b, _ := Marshal(&RouteRefresh{IPv6Unicast})
+	if want := []byte{0, 23, TypeRouteRefresh, 0, 2, 0, 1}; !bytes.Equal(b[16:], want) {
+		t.Fatalf("% x", b[16:])
+	}
+	if got := roundTrip(t, Codec{}, &RouteRefresh{IPv6Unicast}).(*RouteRefresh); got.Family != IPv6Unicast {
+		t.Fatal(got)
+	}
+	if _, err := Parse(TypeRouteRefresh, []byte{0, 1, 0}); err == nil {
+		t.Fatal("short refresh parsed")
+	}
+}
+
 func TestOpenRoundTrip(t *testing.T) {
 	o := &Open{
 		AS: 4200000001, HoldTime: 90, ID: netip.MustParseAddr("192.0.2.1"),

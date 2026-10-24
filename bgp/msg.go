@@ -15,6 +15,7 @@ const (
 	TypeUpdate       = 2
 	TypeNotification = 3
 	TypeKeepalive    = 4
+	TypeRouteRefresh = 5
 )
 
 // HeaderLen is the marker, length and type.
@@ -24,7 +25,7 @@ const HeaderLen = 19
 // message capability.
 const MaxLen = 4096
 
-// Message is any of the four message types.
+// Message is any of the message types.
 type Message interface {
 	Type() uint8
 	// body appends the message after the header.
@@ -104,6 +105,11 @@ func (c Codec) Parse(typ uint8, body []byte) (Message, error) {
 			return nil, &Notification{Code: ErrHeader, Subcode: ErrHeaderLength, Data: lenData(HeaderLen + len(body))}
 		}
 		return Keepalive{}, nil
+	case TypeRouteRefresh:
+		if len(body) != 4 {
+			return nil, &Notification{Code: ErrHeader, Subcode: ErrHeaderLength, Data: lenData(HeaderLen + len(body))}
+		}
+		return &RouteRefresh{Family{binary.BigEndian.Uint16(body), body[3]}}, nil
 	}
 	return nil, &Notification{Code: ErrHeader, Subcode: ErrHeaderType, Data: []byte{typ}}
 }
@@ -117,3 +123,15 @@ type Keepalive struct{}
 func (Keepalive) Type() uint8 { return TypeKeepalive }
 
 func (Keepalive) body(b []byte, _ Codec) ([]byte, error) { return b, nil }
+
+// RouteRefresh asks the peer to send its routes for a family again,
+// RFC 2918.
+type RouteRefresh struct{ Family Family }
+
+// Type is TypeRouteRefresh.
+func (*RouteRefresh) Type() uint8 { return TypeRouteRefresh }
+
+func (r *RouteRefresh) body(b []byte, _ Codec) ([]byte, error) {
+	b = binary.BigEndian.AppendUint16(b, r.Family.AFI)
+	return append(b, 0, r.Family.SAFI), nil
+}
