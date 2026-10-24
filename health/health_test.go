@@ -229,8 +229,8 @@ func TestDNS(t *testing.T) {
 	if err := (DNS{Server: dnsServer(t, false), Name: "svc.example.com"}).Check(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := (DNS{Server: dnsServer(t, true), Name: "svc.example.com"}).Check(ctx); err == nil {
-		t.Fatal("empty answer passed")
+	if err := (DNS{Server: dnsServer(t, true), Name: "svc.example.com"}).Check(ctx); err == nil || err.Error() != "no addresses for the name" {
+		t.Fatalf("empty answer: %v", err)
 	}
 }
 

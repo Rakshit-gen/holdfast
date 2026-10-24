@@ -130,6 +130,15 @@ func (c DNS) Check(ctx context.Context) error {
 		},
 	}
 	addrs, err := r.LookupHost(ctx, c.Name)
+	var de *net.DNSError
+	if errors.As(err, &de) {
+		// Its message names the system resolver, not Server, which
+		// misleads whoever reads the status.
+		if de.IsNotFound {
+			return errors.New("no addresses for the name")
+		}
+		return errors.New(de.Err)
+	}
 	if err != nil {
 		return err
 	}
