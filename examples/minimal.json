@@ -1,0 +1,22 @@
+{
+  "site": "fra1",
+  "asn": 64512,
+  "router_id": "192.0.2.20",
+  "next_hop": "192.0.2.20",
+  "api": "127.0.0.1:9179",
+  "neighbors": [
+    {"address": "192.0.2.1", "asn": 64513}
+  ],
+  "services": [
+    {
+      "name": "web",
+      "prefixes": ["198.51.100.80/32"],
+      "checks": [{"type": "http", "url": "http://127.0.0.1:8080/healthz"}]
+    }
+  ],
+  "fleet": {
+    "listen": "192.0.2.20:9180",
+    "min_up": 1,
+    "peers": [{"site": "ams1", "url": "http://192.0.2.10:9180"}]
+  }
+}
