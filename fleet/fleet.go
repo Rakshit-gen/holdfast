@@ -129,15 +129,17 @@ func (n *Node) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(n.wire(time.Now()))
+	json.NewEncoder(w).Encode(n.wire())
 }
 
-func (n *Node) wire(now time.Time) Wire {
+func (n *Node) wire() Wire {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	now := time.Now()
 	out := Wire{Site: n.Site, Services: []WireService{}}
 	for svc, m := range n.mine {
-		out.Services = append(out.Services, WireService{svc, m.healthy, m.mode.String(), now.Sub(m.at).Seconds()})
+		age := max(now.Sub(m.at), 0)
+		out.Services = append(out.Services, WireService{svc, m.healthy, m.mode.String(), age.Seconds()})
 	}
 	slices.SortFunc(out.Services, func(a, b WireService) int { return strings.Compare(a.Service, b.Service) })
 	return out
