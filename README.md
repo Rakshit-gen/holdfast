@@ -197,3 +197,29 @@ scripts/interop.sh                               # against a real GoBGP
 The fleet tests run several holdfast daemons, each with its own stand-in router and a health endpoint the test turns off, and check what the routers end up with: one sick site leaves, every site sick keeps the floor, a cut-off site fails static, a stop withdraws before closing.
 
 `scripts/interop.sh` runs holdfast against GoBGP v3.37.0 and checks, through `gobgp`, that the session comes up, IPv4 and IPv6 (MP_REACH) prefixes and communities arrive, a failing check prepends the path, recovery restores it, and stopping marks the routes for graceful shutdown and then withdraws them. CI runs it on every push.
+
+## Limits
+
+- **Brief overshoot.** Each site decides from its own view of the fleet. If two sites see a third differently (one has a newer report than the other), their rankings can differ and both may withdraw, for one fleet poll interval at most, before their views agree again. Unknown sites take withdraw slots, which keeps this on the safe side in most cases but not all.
+- **Degrade is a hint.** Prepending only moves traffic for networks that prefer shorter AS paths. Networks with local preference on their own routes, or that ignore path length, keep sending to a degraded site. `degrade_communities` helps where the upstream acts on a tag.
+- **Floor without capacity.** holdfast doesn't know how much load a site can take. If the floor is two sites and they can't carry everyone, the floor keeps the service reachable but not fast.
+- **BGP coverage.** IPv4 and IPv6 unicast only. Four-octet AS, route refresh (answered, not enhanced), graceful restart (offered, as a restart time), administrative shutdown messages. No TCP MD5 or TCP-AO, no BFD, no ADD-PATH, no extended messages, no policy on routes received (holdfast counts them and enforces `max_prefixes`, nothing more).
+- **Fleet traffic is plain HTTP** with a bearer token. Use `https://` peer URLs behind a TLS proxy, or keep the fleet listener on a private network.
+- **Hold timers can't be turned off.** `hold_time` 0 means the 90s default.
+
+## References
+
+- RFC 4271, BGP-4
+- RFC 4760, multiprotocol extensions (IPv6 in MP_REACH_NLRI)
+- RFC 6793, four-octet AS numbers
+- RFC 2918, route refresh
+- RFC 4724, graceful restart
+- RFC 8203, administrative shutdown messages
+- RFC 8326, graceful BGP session shutdown (the GRACEFUL_SHUTDOWN community)
+- RFC 1997 and RFC 8092, communities and large communities
+- RFC 2439, route flap damping, which the health check damping copies
+- [Facebook's October 4 2021 outage write-up](https://engineering.fb.com/2021/10/05/networking-traffic/outage-details/)
+
+## License
+
+MIT
