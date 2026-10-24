@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -107,6 +108,18 @@ func TestLoopback(t *testing.T) {
 	} {
 		if got := loopback(addr); got != want {
 			t.Errorf("%s: %v", addr, got)
+		}
+	}
+}
+
+func TestEveryExampleLoads(t *testing.T) {
+	files, _ := filepath.Glob("../examples/*.json")
+	if len(files) < 2 {
+		t.Fatalf("found %v", files)
+	}
+	for _, f := range files {
+		if _, err := Load(f); err != nil {
+			t.Error(err)
 		}
 	}
 }
