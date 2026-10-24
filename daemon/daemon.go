@@ -212,7 +212,7 @@ func (d *Daemon) decide(now time.Time) {
 		dec := guard.Decide(guard.Input{
 			Service: name, Site: d.cfg.Site, Healthy: s.healthy, Mode: s.mode, Since: s.since,
 			Fleet: d.fleet.View(name), Sites: d.fleet.Sites(), Now: now,
-		}, d.cfg.Policy())
+		}, d.cfg.Policy(s.cfg))
 		if dec.Mode != s.mode {
 			d.logf("service %s: %s -> %s (%s)", name, s.mode, dec.Mode, dec.Reason)
 			if dec.Mode == guard.Degrade {

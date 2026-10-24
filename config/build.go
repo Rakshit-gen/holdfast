@@ -110,11 +110,16 @@ func (c *Config) Routes(s Service, mode guard.Mode) []bgp.Route {
 	return out
 }
 
-// Policy is the guard policy.
-func (c *Config) Policy() guard.Policy {
+// Policy is the guard policy for a service: the fleet's, with the
+// service's own floor if it sets one.
+func (c *Config) Policy(s Service) guard.Policy {
 	f := c.Fleet
-	return guard.Policy{
+	p := guard.Policy{
 		MinUp: f.MinUp, MinFraction: f.MinFraction, Stale: time.Duration(f.Stale),
 		Quorum: f.Quorum, Unguarded: f.Unguarded,
 	}
+	if s.MinUp > 0 || s.MinFraction > 0 {
+		p.MinUp, p.MinFraction = s.MinUp, s.MinFraction
+	}
+	return p
 }

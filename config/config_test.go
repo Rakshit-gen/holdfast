@@ -25,8 +25,9 @@ func TestExampleLoads(t *testing.T) {
 	if !strings.HasPrefix(p.Check.String(), "absent /etc/holdfast/drain, dns health.example.com") || p.Damping == nil {
 		t.Fatalf("probe %v", p.Check)
 	}
-	if pol := c.Policy(); pol.Floor(4) != 2 {
-		t.Fatalf("floor %d", pol.Floor(4))
+	// dns sets its own floor; web uses the fleet's.
+	if dns, web := c.Policy(c.Services[0]).Floor(4), c.Policy(c.Services[1]).Floor(4); dns != 3 || web != 2 {
+		t.Fatalf("floors %d and %d", dns, web)
 	}
 }
 

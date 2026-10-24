@@ -89,6 +89,11 @@ type Service struct {
 	DegradePrepend     *int     `json:"degrade_prepend"`
 	DegradeCommunities []string `json:"degrade_communities"`
 
+	// MinUp and MinFraction, if set, replace the fleet's floor for this
+	// service.
+	MinUp       int     `json:"min_up"`
+	MinFraction float64 `json:"min_fraction"`
+
 	Checks   []Check  `json:"checks"`
 	Interval Duration `json:"interval"`
 	Timeout  Duration `json:"timeout"`
@@ -286,6 +291,12 @@ func (c *Config) Check() error {
 			if err := ch.check(); err != nil {
 				bad("%s: checks[%d]: %v", at, j, err)
 			}
+		}
+		if n := len(c.Fleet.Peers) + 1; s.MinUp > n || s.MinUp < 0 {
+			bad("%s: min_up is %d but there are only %d sites", at, s.MinUp, n)
+		}
+		if s.MinFraction < 0 || s.MinFraction > 1 {
+			bad("%s: min_fraction must be 0 to 1", at)
 		}
 		if s.Rise < 0 || s.Fall < 0 {
 			bad("%s: rise and fall can't be negative", at)
