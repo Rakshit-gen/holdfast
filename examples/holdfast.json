@@ -6,6 +6,7 @@
   "next_hop6": "2001:db8:10::10",
   "api": "127.0.0.1:9179",
   "drain_file": "/etc/holdfast/drain",
+  "graceful_shutdown": "15s",
   "neighbors": [
     {"address": "192.0.2.1", "asn": 64513, "hold_time": "90s"},
     {"address": "192.0.2.2", "asn": 64513, "hold_time": "90s"}
