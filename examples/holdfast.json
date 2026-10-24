@@ -17,6 +17,7 @@
       "prefixes": ["198.51.100.53/32", "2001:db8:53::/48"],
       "communities": ["64512:53"],
       "degrade_prepend": 3,
+      "min_up": 3,
       "checks": [
         {"type": "dns", "server": "127.0.0.1:53", "name": "health.example.com"},
         {"type": "absent", "path": "/etc/holdfast/drain-dns"}

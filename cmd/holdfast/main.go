@@ -111,9 +111,12 @@ func checkCmd(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s: ok. Site %s, %d services, %d neighbors, %d other sites, floor %d of %d sites.\n",
-		*path, cfg.Site, len(cfg.Services), len(cfg.Neighbors), len(cfg.Fleet.Peers),
-		cfg.Policy().Floor(len(cfg.Fleet.Peers)+1), len(cfg.Fleet.Peers)+1)
+	sites := len(cfg.Fleet.Peers) + 1
+	fmt.Printf("%s: ok. Site %s, %d neighbors, %d sites in the fleet.\n", *path, cfg.Site, len(cfg.Neighbors), sites)
+	for _, s := range cfg.Services {
+		fmt.Printf("  %s: %d prefixes, at least %d of %d sites keep announcing\n",
+			s.Name, len(s.Prefixes), cfg.Policy(s).Floor(sites), sites)
+	}
 	if !*probe {
 		return nil
 	}
