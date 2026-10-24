@@ -61,7 +61,7 @@ holdfast run   -config /etc/holdfast/holdfast.json
 ```
 examples/holdfast.json: ok. Site ams1, 2 neighbors, 4 sites in the fleet.
   dns: 2 prefixes, at least 3 of 4 sites keep announcing
-  web: 1 prefixes, at least 2 of 4 sites keep announcing
+  web: 1 prefix, at least 2 of 4 sites keep announcing
 ```
 
 While it runs:

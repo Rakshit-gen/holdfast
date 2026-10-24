@@ -118,15 +118,15 @@ func checkCmd(args []string) error {
 	for _, s := range cfg.Services {
 		pol := cfg.Policy(s)
 		if pol.Unguarded {
-			fmt.Printf("  %s: %d prefixes, unguarded, so every site may withdraw at once\n", s.Name, len(s.Prefixes))
+			fmt.Printf("  %s: %s, unguarded, so every site may withdraw at once\n", s.Name, prefixes(len(s.Prefixes)))
 			continue
 		}
 		note := ""
 		if pol.Floor(sites) == sites {
 			note = "; no site can ever withdraw, only degrade"
 		}
-		fmt.Printf("  %s: %d prefixes, at least %d of %d sites keep announcing%s\n",
-			s.Name, len(s.Prefixes), pol.Floor(sites), sites, note)
+		fmt.Printf("  %s: %s, at least %d of %d sites keep announcing%s\n",
+			s.Name, prefixes(len(s.Prefixes)), pol.Floor(sites), sites, note)
 	}
 	if !*probe {
 		return nil
@@ -152,4 +152,11 @@ func checkCmd(args []string) error {
 		return fmt.Errorf("%d of %d services failing their checks", failed, len(cfg.Services))
 	}
 	return nil
+}
+
+func prefixes(n int) string {
+	if n == 1 {
+		return "1 prefix"
+	}
+	return fmt.Sprintf("%d prefixes", n)
 }
