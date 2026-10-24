@@ -161,6 +161,7 @@ func (c Codec) parseUpdate(b []byte) (Message, error) {
 		return nil, &Notification{Code: ErrUpdate, Subcode: ErrUpdateNetwork}
 	}
 
+	classic := len(u.Announce) > 0
 	seen := map[uint8]bool{}
 	var as4 []Segment
 	for len(attrs) > 0 {
@@ -193,7 +194,8 @@ func (c Codec) parseUpdate(b []byte) (Message, error) {
 	}
 	if len(u.Announce) > 0 {
 		for _, need := range []uint8{AttrOrigin, AttrASPath, AttrNextHop} {
-			if !seen[need] {
+			// NEXT_HOP is only for IPv4 NLRI; MP_REACH carries its own.
+			if !seen[need] && (need != AttrNextHop || classic) {
 				return nil, &Notification{Code: ErrUpdate, Subcode: ErrUpdateMissing, Data: []byte{need}}
 			}
 		}
