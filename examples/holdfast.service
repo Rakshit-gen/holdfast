@@ -28,6 +28,10 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 ReadOnlyPaths=/etc/holdfast
+# DynamicUser can't read a root-only token file. Hand it over as a
+# credential instead and point fleet.token_file at
+# /run/credentials/holdfast.service/fleet-token:
+# LoadCredential=fleet-token:/etc/holdfast/fleet-token
 
 [Install]
 WantedBy=multi-user.target
